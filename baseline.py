@@ -36,16 +36,16 @@ num_epochs = 2
 lr = 0.001
 momentum = 0.9
 
-filter_size1_tries = [4, 5, 6]
-filter_size2_tries = [4, 5, 6]
+filter_size1_tries = [4, 5]
+filter_size2_tries = [4, 5]
 inter_channels_tries = [5, 6, 7]
 out_channels_tries = [12, 16, 32]
-pool_size_tries = [2, 4, 6]
-layer_size1_tries = [80, 120, 200]
-layer_size2_tries = [56, 84, 120]
-num_epochs_tries = [2, 3]
-lr_tries = [0.001, 0.01]
-momentum_tries = [0.0, 0.5, 0.9]
+pool_size_tries = [2]
+layer_size1_tries = [80, 120]
+layer_size2_tries = [84]
+num_epochs_tries = [2]
+lr_tries = [0.001]
+momentum_tries = [0.9]
 
 for filter_size1 in filter_size1_tries:
     for filter_size2 in filter_size2_tries:
@@ -82,6 +82,7 @@ for filter_size1 in filter_size1_tries:
                                             def forward(self, x):
                                                 x = self.pool(F.relu(self.conv1(x)))
                                                 x = self.pool(F.relu(self.conv2(x)))
+                                                
                                                 x = x.view(-1, int(x.numel()/x.shape[0]))
                                                 x = F.relu(self.fc1(x))
                                                 x = F.relu(self.fc2(x))
@@ -123,12 +124,27 @@ for filter_size1 in filter_size1_tries:
 
                                         print('Finished Training')
 
+                                        dataiter = iter(testloader)
+                                        images, labels = dataiter.next()
+
+                                        correct = 0
+                                        total = 0
+                                        with torch.no_grad():
+                                            for data in testloader:
+                                                images, labels = data
+                                                outputs = net(images)
+                                                _, predicted = torch.max(outputs.data, 1)
+                                                total += labels.size(0)
+                                                correct += (predicted == labels).sum().item()
+
+                                        print('Accuracy of the network on the 10000 test images: %d %%' % (
+                                            100 * correct / total))
+
 
                                         """PATH = './cifar_net.pth'
                                         torch.save(net.state_dict(), PATH)
 
-                                        dataiter = iter(testloader)
-                                        images, labels = dataiter.next()
+
 
                                         # print images
                                         imshow(torchvision.utils.make_grid(images))
