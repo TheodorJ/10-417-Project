@@ -232,7 +232,16 @@ def train_parameters(hyp):
     net_loss = total_loss / n_train
     net_acc  = correct / n_test
 
-    print('Net Loss: %.3f   | Net Acc: %.3f' % (net_loss, net_acc))
+    print('Finished Training')
+
+    '''
+    PATH = './cifar_net.pth'
+    torch.save(net.state_dict(), PATH)
+
+    dataiter = iter(testloader)
+    images, labels = dataiter.next()
+    '''
+
 
 
 
