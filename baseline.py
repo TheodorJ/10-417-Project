@@ -50,7 +50,6 @@ momentum_tries = [0.9]
 
 
 
-
                                     
 def train_parameters(filter_size1, filter_size2, inter_channels, out_channels, pool_size, layer_size1, layer_size2, num_epochs, lr, momentum):
     print("\nTesting for:")
@@ -148,6 +147,25 @@ def train_parameters(filter_size1, filter_size2, inter_channels, out_channels, p
 
 
 
+
+workers = []
+for filter_size1 in filter_size1_tries:
+    for filter_size2 in filter_size2_tries:
+        for inter_channels in inter_channels_tries:
+            for out_channels in out_channels_tries:
+                for pool_size in pool_size_tries:
+                    for layer_size1 in layer_size1_tries:
+                        for layer_size2 in layer_size2_tries:
+                            for num_epochs in num_epochs_tries:
+                                for lr in lr_tries:
+                                    for momentum in momentum_tries:
+                                        workers.append(multiprocessing.Process(target=train_parameters, args=(filter_size1, filter_size2, inter_channels, out_channels, pool_size, layer_size1, layer_size2, num_epochs, lr, momentum,)))
+
+for worker in workers:
+    worker.start()
+
+for worker in workers:
+    worker.join()
 
 workers = []
 for filter_size1 in filter_size1_tries:
