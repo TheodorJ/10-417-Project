@@ -38,7 +38,7 @@ lr = 0.001
 momentum = 0.9
 
 filter_size1_tries = [4, 5]
-filter_size2_tries = [4, 5]
+filter_size2_tries = [4]
 inter_channels_tries = [5, 6, 7]
 out_channels_tries = [12, 16, 32]
 pool_size_tries = [2]
@@ -50,7 +50,7 @@ momentum_tries = [0.9]
 
 
 
-                                    
+
 def train_parameters(filter_size1, filter_size2, inter_channels, out_channels, pool_size, layer_size1, layer_size2, num_epochs, lr, momentum):
     print("\nTesting for:")
     print("  filter_size1 = %s" % filter_size1)
@@ -116,15 +116,6 @@ def train_parameters(filter_size1, filter_size2, inter_channels, out_channels, p
                         (epoch + 1, i + 1, running_loss / 2000))
                 running_loss = 0.0
 
-    print('Finished Training')
-
-
-    """PATH = './cifar_net.pth'
-    torch.save(net.state_dict(), PATH)
-
-    dataiter = iter(testloader)
-    images, labels = dataiter.next()
-
     correct = 0
     total = 0
     with torch.no_grad():
@@ -137,6 +128,17 @@ def train_parameters(filter_size1, filter_size2, inter_channels, out_channels, p
 
     print('Accuracy of the network on the 10000 test images: %d %%' % (
         100 * correct / total))
+
+    print('Finished Training')
+
+
+    """PATH = './cifar_net.pth'
+    torch.save(net.state_dict(), PATH)
+
+    dataiter = iter(testloader)
+    images, labels = dataiter.next()
+
+
 
 
 
