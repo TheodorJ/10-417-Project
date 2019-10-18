@@ -23,71 +23,116 @@ classes = ('plane', 'car', 'bird', 'cat',
 import torch.nn as nn
 import torch.nn.functional as F
 
+in_channels = 3
+filter_size1 = 5
+filter_size2 = 6
+inter_channels = 6
+out_channels = 16
+pool_size = 2
+layer_size1 = 120
+layer_size2 = 84
 
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+num_epochs = 2
+lr = 0.001
+momentum = 0.9
 
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+filter_size1_tries = [4, 5, 6]
+filter_size2_tries = [4, 5, 6]
+inter_channels_tries = [5, 6, 7]
+out_channels_tries = [12, 16, 32]
+pool_size_tries = [2, 4, 6]
+layer_size1_tries = [80, 120, 200]
+layer_size2_tries = [56, 84, 120]
+num_epochs_tries = [2, 3]
+lr_tries = [0.001, 0.01]
+momentum_tries = [0.0, 0.5, 0.9]
+
+for filter_size1 in filter_size1_tries:
+    for filter_size2 in filter_size2_tries:
+        for inter_channels in inter_channels_tries:
+            for out_channels in out_channels_tries:
+                for pool_size in pool_size_tries:
+                    for layer_size1 in layer_size1_tries:
+                        for layer_size2 in layer_size2_tries:
+                            for num_epochs in num_epochs_tries:
+                                for lr in lr_tries:
+                                    for momentum in momentum_tries:
+                                        print("\nTesting for:")
+                                        print("  filter_size1 = %s" % filter_size1)
+                                        print("  filter_size2 = %s" % filter_size2)
+                                        print("  inter_channels = %s" % inter_channels)
+                                        print("  out_channels = %s" % out_channels)
+                                        print("  pool_size = %s" % pool_size)
+                                        print("  layer_size1 = %s" % layer_size1)
+                                        print("  layer_size2 = %s" % layer_size2)
+                                        print("  num_epochs = %s" % num_epochs)
+                                        print("  lr = %s" % lr)
+                                        print("  momentum = %s" % momentum)
+
+                                        class Net(nn.Module):
+                                            def __init__(self):
+                                                super(Net, self).__init__()
+                                                self.conv1 = nn.Conv2d(in_channels, inter_channels, filter_size1, padding=1)
+                                                self.pool = nn.MaxPool2d(pool_size, pool_size)
+                                                self.conv2 = nn.Conv2d(inter_channels, out_channels, filter_size2, padding=1)
+                                                self.fc1 = nn.Linear(out_channels * 7 * 7, layer_size1)
+                                                self.fc2 = nn.Linear(layer_size1, layer_size2)
+                                                self.fc3 = nn.Linear(layer_size2, 10)
+
+                                            def forward(self, x):
+                                                x = self.pool(F.relu(self.conv1(x)))
+                                                x = self.pool(F.relu(self.conv2(x)))
+                                                x = x.view(-1, int(x.numel()/x.shape[0]))
+                                                x = F.relu(self.fc1(x))
+                                                x = F.relu(self.fc2(x))
+                                                x = self.fc3(x)
+                                                return x
 
 
-net = Net()
+                                        net = Net()
 
 
-import torch.optim as optim
+                                        import torch.optim as optim
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-
-
-for epoch in range(2):  # loop over the dataset multiple times
-
-    running_loss = 0.0
-    for i, data in enumerate(trainloader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
-
-        # zero the parameter gradients
-        optimizer.zero_grad()
-
-        # forward + backward + optimize
-        outputs = net(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
-        # print statistics
-        running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / 2000))
-            running_loss = 0.0
-
-print('Finished Training')
+                                        criterion = nn.CrossEntropyLoss()
+                                        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
 
 
-PATH = './cifar_net.pth'
-torch.save(net.state_dict(), PATH)
+                                        for epoch in range(num_epochs):  # loop over the dataset multiple times
 
-dataiter = iter(testloader)
-images, labels = dataiter.next()
+                                            running_loss = 0.0
+                                            for i, data in enumerate(trainloader, 0):
+                                                # get the inputs; data is a list of [inputs, labels]
+                                                inputs, labels = data
 
-# print images
-imshow(torchvision.utils.make_grid(images))
-print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
+                                                # zero the parameter gradients
+                                                optimizer.zero_grad()
+
+                                                # forward + backward + optimize
+                                                outputs = net(inputs)
+                                                loss = criterion(outputs, labels)
+                                                loss.backward()
+                                                optimizer.step()
+
+                                                # print statistics
+                                                running_loss += loss.item()
+                                                if i % 2000 == 1999:    # print every 2000 mini-batches
+                                                    print('[%d, %5d] loss: %.3f' %
+                                                          (epoch + 1, i + 1, running_loss / 2000))
+                                                    running_loss = 0.0
+
+                                        print('Finished Training')
+
+
+                                        """PATH = './cifar_net.pth'
+                                        torch.save(net.state_dict(), PATH)
+
+                                        dataiter = iter(testloader)
+                                        images, labels = dataiter.next()
+
+                                        # print images
+                                        imshow(torchvision.utils.make_grid(images))
+                                        print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))"""
 
 
 net = Net()
