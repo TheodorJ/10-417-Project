@@ -33,7 +33,7 @@ h_in    = trainset[0][0].shape[1]
 w_in    = trainset[0][0].shape[2]
 
 
-num_epochs = 1
+num_epochs = 2
 lr = 0.001
 momentum = 0.9
 
@@ -48,10 +48,17 @@ momentum_tries = [0.9]
 
 NUM_CORES = 4
 
+RESULT_FOLDER = "results/"
+def params_to_filename(hyp):
+    fname = RESULT_FOLDER
+    for param in hyp:
+        fname += str(param) + "-"
 
+    return fname + ".csv"
 
 
 def build_permutations():
+    fname = 0
 
     hyperparameters = []
     for filter_size1 in filter_size1_tries:
@@ -62,7 +69,8 @@ def build_permutations():
                         for hidden_layer in hidden_layer_tries:
                             for lr in lr_tries:
                                 for momentum in momentum_tries:
-                                    hyperparameters.append( (filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum) )
+                                    hyp = (filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum,)
+                                    hyperparameters.append(hyp)
 
     return hyperparameters
 
@@ -78,11 +86,11 @@ def train_parameters_range(worker_id):
                 hyp = hyperparameters[indx]
                 train_parameters(hyp)
 
-                                    
+
 def train_parameters(hyp):
 
     filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum = hyp
-    
+
     print("\nTesting for:")
     print("  filter_size1 = %s" % filter_size1)
     print("  filter_size2 = %s" % filter_size2)
@@ -92,7 +100,7 @@ def train_parameters(hyp):
     print("  hidden_layers = %s" % hidden_layer)
     print("  lr = %s" % lr)
     print("  momentum = %s" % momentum)
-    
+
     hl = hidden_layer.copy()
     hl.insert(0, out_channels * 7 * 7)
     hl.append(10)
@@ -109,7 +117,7 @@ def train_parameters(hyp):
                 decoder.append( nn.Linear(hl[i], hl[i+1]) )
                 decoder.append( nn.ReLU() )
             self.decoder = nn.Sequential( *decoder )
-            
+
 
         def forward(self, x):
             x = self.pool(F.relu(self.conv1(x)))
@@ -132,7 +140,8 @@ def train_parameters(hyp):
 
         running_loss = 0.0
         total_loss   = 0.0
-        
+        correct_train = 0
+
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
@@ -149,11 +158,47 @@ def train_parameters(hyp):
             # print statistics
             running_loss += loss.item()
             total_loss   += loss.item()
+
+            _, predicted = torch.max(outputs.data, 1)
+            correct_train += (predicted == labels).sum().item()
+
             if i % 2000 == 1999:    # print every 2000 mini-batches
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
                         (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
-        
+
+        # Calculate test loss/accuracy
+        dataiter = iter(testloader)
+        images, labels = dataiter.next()
+
+        total = 0
+        correct = 0
+        total_test_loss = 0
+        with torch.no_grad():
+            for data in testloader:
+                images, labels = data
+                outputs = net(images)
+                loss = criterion(outputs, labels)
+                total_test_loss += loss
+                outputs = net(images)
+                loss, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        total_test_loss = total_test_loss / n_test
+
+        with open(params_to_filename(hyp), "a") as fd:
+            fd.write("%d," % epoch)
+            for hyper in hyp:
+                fd.write(str(hyper) + ",")
+
+            fd.write("%f," % (running_loss / n_train))
+            fd.write("%f," % (correct_train / n_train))
+            fd.write("%f," % total_test_loss)
+            fd.write("%f,\n" % (correct / n_test))
+
+
+
 
     print('Finished Training')
 
@@ -187,4 +232,3 @@ for worker in workers:
 
 for worker in workers:
     worker.join()
-
