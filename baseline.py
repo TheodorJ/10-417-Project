@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import multiprocessing
 import math
 import csv
+import time
 
 
 from dimensions import *
@@ -142,6 +143,9 @@ def train_parameters(hyp):
         total_loss   = 0.0
         correct_train = 0
 
+        # Time code found here: https://stackoverflow.com/questions/5998245/get-current-time-in-milliseconds-in-python
+        starttime = int(round(time.time() * 1000))
+
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
@@ -187,6 +191,8 @@ def train_parameters(hyp):
 
         total_test_loss = total_test_loss / n_test
 
+        endtime = int(round(time.time() * 1000))
+
         with open(params_to_filename(hyp), "a") as fd:
             fd.write("%d," % epoch)
             for hyper in hyp:
@@ -195,7 +201,8 @@ def train_parameters(hyp):
             fd.write("%f," % (running_loss / n_train))
             fd.write("%f," % (correct_train / n_train))
             fd.write("%f," % total_test_loss)
-            fd.write("%f,\n" % (correct / n_test))
+            fd.write("%f," % (correct / n_test))
+            fd.write("%d,\n" % (endtime - starttime))
 
 
 
