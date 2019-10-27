@@ -46,7 +46,7 @@ hidden_layer_tries = [[80,84], [120,84]]
 lr_tries = [0.001]
 momentum_tries = [0.9]
 
-NUM_CORES = 4
+NUM_CORES = 30
 
 RESULT_FOLDER = "results/"
 def params_to_filename(hyp):
@@ -101,16 +101,21 @@ def train_parameters(hyp):
     print("  lr = %s" % lr)
     print("  momentum = %s" % momentum)
 
-    hl = hidden_layer.copy()
-    hl.insert(0, out_channels * 7 * 7)
-    hl.append(10)
-
     class Net(nn.Module):
         def __init__(self):
             super(Net, self).__init__()
             self.conv1 = nn.Conv2d(c_in, inter_channels, filter_size1, padding=1)
             self.pool = nn.MaxPool2d(pool_size, pool_size)
             self.conv2 = nn.Conv2d(inter_channels, out_channels, filter_size2, padding=1)
+
+            c_mid, h_mid, w_mid = conv_dimensions(c_in, h_in, w_in, inter_channels, 1, 1, filter_size1, filter_size1)
+            c_mid, h_mid, w_mid = pool_dimensions(c_mid, h_mid, w_mid, pool_size)
+            c_out, h_out, w_out = conv_dimensions(c_mid, h_mid, w_mid, out_channels, 1, 1, filter_size2, filter_size2)
+            c_out, h_out, w_out = pool_dimensions(c_out, h_out, w_out, pool_size)
+
+            hl = hidden_layer.copy()
+            hl.insert(0, c_out * h_out * w_out)
+            hl.append(10)
 
             decoder = []
             for i in range(len(hl)-1):
