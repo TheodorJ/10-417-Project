@@ -4,6 +4,8 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 
+import numpy as np
+
 
 import multiprocessing
 import math
@@ -34,18 +36,20 @@ h_in    = trainset[0][0].shape[1]
 w_in    = trainset[0][0].shape[2]
 
 
-num_epochs = 2
-lr = 0.001
-momentum = 0.9
 
-filter_size1_tries = [4, 5]
-filter_size2_tries = [4]
-inter_channels_tries = [5, 6, 7]
-out_channels_tries = [12, 16, 32]
-pool_size_tries = [2]
-hidden_layer_tries = [[80,84], [120,84]]
-lr_tries = [0.001]
-momentum_tries = [0.9]
+FILTER_SIZE_1_RANGE = [3,10]
+FILTER_SIZE_2_RANGE = [3,10]
+INTER_CHANNEL_RANGE = [5,10]
+OUT_CHANNEL_RANGE = [12,20]
+POOL_SIZE_RANGE = [2, 4]
+HIDDEN_LAYER_RANGE = [30,200]
+HIDDEN_LAYER_DEPTH = [1,5]
+
+LEARNING_RATE = 0.001
+MOMENTUM_RATE = 0.9
+NUM_EPOCHS    = 2
+
+RANDOM_SAMPLES = 30
 
 NUM_CORES = 4
 
@@ -59,19 +63,26 @@ def params_to_filename(hyp):
 
 
 def build_permutations():
-    fname = 0
 
     hyperparameters = []
-    for filter_size1 in filter_size1_tries:
-        for filter_size2 in filter_size2_tries:
-            for inter_channels in inter_channels_tries:
-                for out_channels in out_channels_tries:
-                    for pool_size in pool_size_tries:
-                        for hidden_layer in hidden_layer_tries:
-                            for lr in lr_tries:
-                                for momentum in momentum_tries:
-                                    hyp = (filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum,)
-                                    hyperparameters.append(hyp)
+
+    for ID in range(RANDOM_SAMPLES):
+
+            layerDepth = np.random.randint(HIDDEN_LAYER_DEPTH[0], high=HIDDEN_LAYER_DEPTH[1])
+            hidden_layer = np.random.randint(HIDDEN_LAYER_RANGE[0], high=HIDDEN_LAYER_RANGE[1], size=layerDepth)
+            hidden_layer = hidden_layer.tolist()
+
+            inter_channels = np.random.randint(INTER_CHANNEL_RANGE[0], high=INTER_CHANNEL_RANGE[1])
+            out_channels   = np.random.randint(OUT_CHANNEL_RANGE[0], high=OUT_CHANNEL_RANGE[1])
+
+            filter_size1 = np.random.randint(FILTER_SIZE_1_RANGE[0], high=FILTER_SIZE_1_RANGE[1])
+            filter_size2 = np.random.randint(FILTER_SIZE_2_RANGE[0], high=FILTER_SIZE_2_RANGE[1])
+
+            pool_size = np.random.randint(POOL_SIZE_RANGE[0], high=POOL_SIZE_RANGE[1])
+
+
+            hyp = (ID, filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, LEARNING_RATE, MOMENTUM_RATE,)
+            hyperparameters.append(hyp)
 
     return hyperparameters
 
@@ -90,17 +101,15 @@ def train_parameters_range(worker_id):
 
 def train_parameters(hyp):
 
-    filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum = hyp
+    ID, filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum = hyp
 
-    print("\nTesting for:")
-    print("  filter_size1 = %s" % filter_size1)
-    print("  filter_size2 = %s" % filter_size2)
-    print("  inter_channels = %s" % inter_channels)
-    print("  out_channels = %s" % out_channels)
-    print("  pool_size = %s" % pool_size)
-    print("  hidden_layers = %s" % hidden_layer)
-    print("  lr = %s" % lr)
-    print("  momentum = %s" % momentum)
+    print("\n[ID=%d] Testing for:" % ID)
+    print("          filter_size1 = %s" % filter_size1)
+    print("          filter_size2 = %s" % filter_size2)
+    print("          inter_channels = %s" % inter_channels)
+    print("          out_channels = %s" % out_channels)
+    print("          pool_size = %s" % pool_size)
+    print("          hidden_layers = %s" % hidden_layer)
 
     class Net(nn.Module):
         def __init__(self):
@@ -142,7 +151,7 @@ def train_parameters(hyp):
     optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
 
 
-    for epoch in range(num_epochs):  # loop over the dataset multiple times
+    for epoch in range(NUM_EPOCHS):  # loop over the dataset multiple times
 
         running_loss = 0.0
         total_loss   = 0.0
@@ -172,8 +181,8 @@ def train_parameters(hyp):
             correct_train += (predicted == labels).sum().item()
 
             if i % 2000 == 1999:    # print every 2000 mini-batches
-                print('[%d/%d, %5d/%5d] loss: %.3f' %
-                        (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
+                print('[ID=%d][%d/%d, %5d/%5d] loss: %.3f' %
+                        (ID, epoch + 1, NUM_EPOCHS, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
 
         # Calculate test loss/accuracy
