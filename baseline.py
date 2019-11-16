@@ -4,6 +4,7 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 
+#import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -15,28 +16,16 @@ import time
 
 from dimensions import *
 
+NUM_CLASSES = 0
+NUM_SAMPLES = 0
+TEST_SIZE  = 0
+TRAIN_SIZE = 0
 
+CHANNELS_IN = 0
+HEIGHT_IN = 0
+WIDTH_IN = 0
 
-transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
-
-testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
-
-classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-n_test  = len(testset)
-n_train = len(trainset)
-c_in    = trainset[0][0].shape[0]
-h_in    = trainset[0][0].shape[1]
-w_in    = trainset[0][0].shape[2]
-
-
-
+# initial hyperparameter ranges for first call
 FILTER_SIZE_1_RANGE = [3,10]
 FILTER_SIZE_2_RANGE = [3,10]
 INTER_CHANNEL_RANGE = [5,10]
@@ -52,6 +41,68 @@ NUM_EPOCHS    = 2
 RANDOM_SAMPLES = 30
 
 NUM_CORES = 4
+
+
+
+
+
+def init_training(DS_H, DS_W):
+
+    transform = transforms.Compose(
+            [torchvision.transforms.Resize([DS_H, DS_W], interpolation=2),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+
+    caltech = torchvision.datasets.ImageFolder(root='./data/caltech-101', transform=transform)
+    caltechloader = torch.utils.data.DataLoader(caltech, batch_size=1, shuffle=True)
+
+    global NUM_CLASSES
+    global NUM_SAMPLES
+    global TEST_SIZE 
+    global TRAIN_SIZE
+
+    NUM_CLASSES = 101
+    NUM_SAMPLES = len(caltechloader.dataset)
+    TEST_SIZE  = NUM_SAMPLES // 10
+    TRAIN_SIZE = NUM_SAMPLES - TEST_SIZE
+
+    trainset, testset = torch.utils.data.random_split(caltech, [TRAIN_SIZE, TEST_SIZE])
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=True)
+
+    global CHANNELS_IN
+    global HEIGHT_IN
+    global WIDTH_IN
+
+    CHANNELS_IN = trainset[0][0].shape[0]
+    HEIGHT_IN = trainset[0][0].shape[1]
+    WIDTH_IN = trainset[0][0].shape[2]
+
+    global FILTER_SIZE_1_RANGE
+    global FILTER_SIZE_2_RANGE
+    global INTER_CHANNEL_RANGE
+    global OUT_CHANNEL_RANGE
+    global POOL_SIZE_RANGE
+    global HIDDEN_LAYER_RANGE
+    global HIDDEN_LAYER_DEPTH
+
+
+    FILTER_SIZE_1_RANGE = [3,10]
+    FILTER_SIZE_2_RANGE = [3,10]
+    INTER_CHANNEL_RANGE = [5,10]
+    OUT_CHANNEL_RANGE = [12,20]
+    POOL_SIZE_RANGE = [2, 4]
+    HIDDEN_LAYER_RANGE = [30,200]
+    HIDDEN_LAYER_DEPTH = [1,5]
+
+    return trainloader, testloader
+
+
+trainloader, testloader = init_training(300, 300)
+
+
+
 
 RESULT_FOLDER = "results/"
 def params_to_filename(hyp):
@@ -90,19 +141,29 @@ def build_permutations():
 hyperparameters = build_permutations()
 
 
-def train_parameters_range(worker_id):
+def train_parameters_range(worker_id, send_end):
 
+    opt_loss = 9999999999
+    opt_hyp = 0
     for j in range(math.ceil(len(hyperparameters) / NUM_CORES)):
             indx = j * NUM_CORES + worker_id
             if indx < len(hyperparameters):
                 hyp = hyperparameters[indx]
-                train_parameters(hyp)
+                loss = train_parameters(hyp)
+
+                if loss < opt_loss:
+                    opt_loss = loss
+                    opt_hyp = hyp
+    
+
+    send_end.send( (opt_loss, opt_hyp) )
 
 
 def train_parameters(hyp):
 
     ID, filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum = hyp
 
+    
     print("\n[ID=%d] Testing for:" % ID)
     print("          filter_size1 = %s" % filter_size1)
     print("          filter_size2 = %s" % filter_size2)
@@ -114,18 +175,18 @@ def train_parameters(hyp):
     class Net(nn.Module):
         def __init__(self):
             super(Net, self).__init__()
-            self.conv1 = nn.Conv2d(c_in, inter_channels, filter_size1, padding=1)
+            self.conv1 = nn.Conv2d(CHANNELS_IN, inter_channels, filter_size1, padding=1)
             self.pool = nn.MaxPool2d(pool_size, pool_size)
             self.conv2 = nn.Conv2d(inter_channels, out_channels, filter_size2, padding=1)
 
-            c_mid, h_mid, w_mid = conv_dimensions(c_in, h_in, w_in, inter_channels, 1, 1, filter_size1, filter_size1)
+            c_mid, h_mid, w_mid = conv_dimensions(CHANNELS_IN, HEIGHT_IN, WIDTH_IN, inter_channels, 1, 1, filter_size1, filter_size1)
             c_mid, h_mid, w_mid = pool_dimensions(c_mid, h_mid, w_mid, pool_size)
             c_out, h_out, w_out = conv_dimensions(c_mid, h_mid, w_mid, out_channels, 1, 1, filter_size2, filter_size2)
             c_out, h_out, w_out = pool_dimensions(c_out, h_out, w_out, pool_size)
 
             hl = hidden_layer.copy()
             hl.insert(0, c_out * h_out * w_out)
-            hl.append(10)
+            hl.append(NUM_CLASSES)
 
             decoder = []
             for i in range(len(hl)-1):
@@ -150,7 +211,6 @@ def train_parameters(hyp):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
 
-
     for epoch in range(NUM_EPOCHS):  # loop over the dataset multiple times
 
         running_loss = 0.0
@@ -160,7 +220,11 @@ def train_parameters(hyp):
         # Time code found here: https://stackoverflow.com/questions/5998245/get-current-time-in-milliseconds-in-python
         starttime = int(round(time.time() * 1000))
 
-        for i, data in enumerate(trainloader, 0):
+        for i, data in enumerate(trainloader):
+
+            if i > 2:
+                break
+
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
 
@@ -203,21 +267,22 @@ def train_parameters(hyp):
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-        total_test_loss = total_test_loss / n_test
+        total_test_loss = total_test_loss / TEST_SIZE
 
         endtime = int(round(time.time() * 1000))
 
+        '''
         with open(params_to_filename(hyp), "a") as fd:
             fd.write("%d," % epoch)
             for hyper in hyp:
                 fd.write(str(hyper) + ",")
 
-            fd.write("%f," % (running_loss / n_train))
-            fd.write("%f," % (correct_train / n_train))
+            fd.write("%f," % (running_loss / TRAIN_SIZE))
+            fd.write("%f," % (correct_train / TRAIN_SIZE))
             fd.write("%f," % total_test_loss)
-            fd.write("%f," % (correct / n_test))
+            fd.write("%f," % (correct / TEST_SIZE))
             fd.write("%d,\n" % (endtime - starttime))
-
+        '''    
 
 
 
@@ -236,20 +301,37 @@ def train_parameters(hyp):
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
-    net_loss = total_loss / n_train
-    net_acc  = correct / n_test
+    net_loss = total_loss / TRAIN_SIZE
+    net_acc  = correct / TEST_SIZE
 
-    print('Net Loss: %.3f   | Net Acc: %.3f' % (net_loss, net_acc))
-
+    return net_loss
+    
 
 
 
 workers = []
+pipe_list = []
 for i in range(NUM_CORES):
-    workers.append(multiprocessing.Process(target=train_parameters_range, args=(i,)))
+
+    recv_end, send_end = multiprocessing.Pipe(False)
+
+    t = multiprocessing.Process(target=train_parameters_range, args=(i,send_end))
+    workers.append(t)
+    
+    t.start()
+    pipe_list.append(recv_end)
 
 for worker in workers:
-    worker.start()
+    res = worker.join()
 
-for worker in workers:
-    worker.join()
+
+opt_threads = [x.recv() for x in pipe_list]
+for (loss, hyp) in opt_threads:
+    ID, filter_size1, filter_size2, inter_channels, out_channels, pool_size, hidden_layer, lr, momentum = hyp
+    print("\n[ID=%d] Loss: %.3f" % (ID, loss) ) 
+    print("          filter_size1 = %s" % filter_size1)
+    print("          filter_size2 = %s" % filter_size2)
+    print("          inter_channels = %s" % inter_channels)
+    print("          out_channels = %s" % out_channels)
+    print("          pool_size = %s" % pool_size)
+    print("          hidden_layers = %s" % hidden_layer)
