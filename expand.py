@@ -58,6 +58,7 @@ def descriptor_to_network(descriptor):
                 elif layer_type == "Flatten":
                     layers.append(Flatten())
 
+            self.layers = layers
             self.network = nn.Sequential(*layers)
 
         def forward(self, x):
@@ -65,7 +66,24 @@ def descriptor_to_network(descriptor):
             return x
 
         def to_descriptor(self):
-            pass
+
+            new_descriptor = []
+            i = 0
+            for layer in self.init_descriptor:
+                layer_type = layer[0]
+
+                if layer_type in ["Conv2d", "Linear"]:
+                    weights = self.layers[i].weight.data
+                    bias = self.layers[i].bias.data
+
+
+                    new_descriptor.append((layer_type, weights, bias))
+                else:
+                    new_descriptor.append((layer_type,))
+
+                i += 1
+
+            return new_descriptor
 
 
     return Net()
@@ -156,6 +174,35 @@ for epoch in range(2):  # loop over the dataset multiple times
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
+    print(correct / total)
+    print(total_test_loss)
+
     total_test_loss = total_test_loss / n_test
 
     endtime = int(round(time.time() * 1000))
+
+new_descriptor = net.to_descriptor()
+
+new_net = descriptor_to_network(new_descriptor)
+
+
+# Calculate test loss/accuracy
+dataiter = iter(testloader)
+images, labels = dataiter.next()
+
+total = 0
+correct = 0
+total_test_loss = 0
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        loss = criterion(outputs, labels)
+        total_test_loss += loss
+        outputs = net(images)
+        loss, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(correct / total)
+print(total_test_loss)
