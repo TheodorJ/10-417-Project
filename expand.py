@@ -87,6 +87,33 @@ def insert_conv_layer(old_descriptor):
 
     return unchanged + [("ReLU",)] + old_descriptor[l:]
 
+def expand_conv_layer(old_descriptor, idx):
+    # Find the idx'th convolutional layer
+    # First things first, find the very last convolutional layer
+    unchanged = []
+    curr_item = old_descriptor[0]
+    l = 0
+    i = 0
+    while(curr_item[0] != "Flatten"):
+
+
+        if curr_item[0] == "Conv2d":
+            if i == idx:
+
+                old_filter = curr_item[1]
+                old_bias = curr_item[2]
+                unchanged.append(("Conv2d", expand_conv_kernel(old_filter, 2), old_bias))
+            else:
+                unchanged.append(curr_item)
+            i += 1
+        else:
+            unchanged.append(curr_item)
+
+        l += 1
+        curr_item = old_descriptor[l]
+
+    return unchanged + old_descriptor[l:]
+
 # Descriptor is of the form:
 #  - [({"Conv2d"|"Linear"|"MaxPool"|"ReLU"|"Flatten"|"Reshape"}, weights, bias),]
 def descriptor_to_network(descriptor):
@@ -342,6 +369,85 @@ total_test_loss = total_test_loss / n_test
 endtime = int(round(time.time() * 1000))
 
 new_descriptor = insert_conv_layer(new_descriptor)
+
+net = descriptor_to_network(new_descriptor)
+
+# Calculate test loss/accuracy
+dataiter = iter(testloader)
+images, labels = dataiter.next()
+
+total = 0
+correct = 0
+total_test_loss = 0
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        loss = criterion(outputs, labels)
+        total_test_loss += loss
+        outputs = net(images)
+        loss, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(correct / total)
+print(total_test_loss.item())
+
+epoch = 1
+running_loss = 0.0
+total_loss   = 0.0
+correct_train = 0
+
+# Time code found here: https://stackoverflow.com/questions/5998245/get-current-time-in-milliseconds-in-python
+starttime = int(round(time.time() * 1000))
+
+for i, data in enumerate(trainloader, 0):
+    # get the inputs; data is a list of [inputs, labels]
+    inputs, labels = data
+
+    # zero the parameter gradients
+    optimizer.zero_grad()
+
+    # forward + backward + optimize
+    outputs = net(inputs)
+    loss = criterion(outputs, labels)
+    loss.backward()
+    optimizer.step()
+
+    # print statistics
+    running_loss += loss.item()
+    total_loss   += loss.item()
+
+    _, predicted = torch.max(outputs.data, 1)
+    correct_train += (predicted == labels).sum().item()
+
+    if i % 2000 == 1999:    # print every 2000 mini-batches
+        print('[%d/%d, %5d/%5d] loss: %.3f' %
+                (epoch + 1, 2, i + 1, len(trainloader), running_loss / 2000))
+        running_loss = 0.0
+
+# Calculate test loss/accuracy
+dataiter = iter(testloader)
+images, labels = dataiter.next()
+
+total = 0
+correct = 0
+total_test_loss = 0
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        loss = criterion(outputs, labels)
+        total_test_loss += loss
+        outputs = net(images)
+        loss, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(correct / total)
+print(total_test_loss.item())
+
+new_descriptor = expand_conv_layer(new_descriptor, 0)
 
 net = descriptor_to_network(new_descriptor)
 
