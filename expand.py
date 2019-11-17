@@ -40,11 +40,17 @@ def expand_conv_kernel(old_filter, pad):
 
     return new_filter
 
-def add_cols_to_matrix(old_matrix, num_cols):
-    return torch.cat((old_matrix, torch.zeros((old_matrix.shape[0], num_cols))), dim=1)
+def add_cols_to_matrix(old_matrix, num_cols, zeros=True):
+    if(zeros):
+        return torch.cat((old_matrix, torch.zeros((old_matrix.shape[0], num_cols))), dim=1)
+    else:
+        return torch.cat((old_matrix, torch.zeros((old_matrix.shape[0], num_cols)).fill_(0.001)), dim=1)
 
-def add_rows_to_matrix(old_matrix, num_rows):
-    return torch.cat((old_matrix, torch.zeros((num_rows, old_matrix.shape[0]))), dim=0)
+def add_rows_to_matrix(old_matrix, num_rows, zeros=True):
+    if(zeros):
+        return torch.cat((old_matrix, torch.zeros((num_rows, old_matrix.shape[1]))), dim=0)
+    else:
+        return torch.cat((old_matrix, torch.zeros((num_rows, old_matrix.shape[1])).fill_(0.001)), dim=0)
 
 def add_output_to_bias(old_bias, num_outs):
     return torch.cat((old_bias, torch.zeros((num_outs))))
@@ -113,6 +119,36 @@ def expand_conv_layer(old_descriptor, idx):
         curr_item = old_descriptor[l]
 
     return unchanged + old_descriptor[l:]
+
+def insert_hidden_units(old_descriptor, idx):
+    # Find the idx'th convolutional layer
+    # First things first, find the very last convolutional layer
+    unchanged = []
+    curr_item = old_descriptor[0]
+    l = 0
+    i = 0
+    while(l < len(old_descriptor)):
+
+        if curr_item[0] == "Linear":
+            if i == idx:
+                old_filter = curr_item[1]
+                old_bias = curr_item[2]
+                unchanged.append(("Linear", add_rows_to_matrix(old_filter, old_filter.shape[0]), add_output_to_bias(old_bias, old_bias.shape[0])))
+            elif i == idx + 1:
+                old_filter = curr_item[1]
+                old_bias = curr_item[2]
+                unchanged.append(("Linear", add_cols_to_matrix(old_filter, old_filter.shape[1], zeros=False), old_bias))
+            else:
+                unchanged.append(curr_item)
+            i += 1
+        else:
+            unchanged.append(curr_item)
+
+        l += 1
+        if(l < len(old_descriptor)):
+            curr_item = old_descriptor[l]
+
+    return unchanged
 
 # Descriptor is of the form:
 #  - [({"Conv2d"|"Linear"|"MaxPool"|"ReLU"|"Flatten"|"Reshape"}, weights, bias),]
@@ -281,6 +317,8 @@ for epoch in range(1):  # loop over the dataset multiple times
 
 new_descriptor = net.to_descriptor()
 
+new_descriptor = insert_hidden_units(new_descriptor, 0)
+
 net = descriptor_to_network(new_descriptor)
 
 
@@ -447,7 +485,7 @@ with torch.no_grad():
 print(correct / total)
 print(total_test_loss.item())
 
-new_descriptor = expand_conv_layer(new_descriptor, 0)
+new_descriptor = insert_hidden_units(new_descriptor, 0)
 
 net = descriptor_to_network(new_descriptor)
 
