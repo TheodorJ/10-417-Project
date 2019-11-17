@@ -64,6 +64,28 @@ def insert_layer(old_descriptor):
 
     return old_descriptor[:len(old_descriptor)-1] + new_layer + [old_descriptor[-1]]
 
+# A new conv layer should always be appended to the end of the encoder
+def insert_conv_layer(old_descriptor):
+    # First things first, find the very last convolutional layer
+    unchanged = []
+    curr_item = old_descriptor[0]
+    l = 0
+    while(curr_item[0] != "Flatten"):
+        unchanged.append(curr_item)
+
+        l += 1
+        curr_item = old_descriptor[l]
+
+    # Not -1 because the very last layer is an activation layer
+
+    old_outc = unchanged[-2][1].shape[0]
+    old_tensor = torch.zeros((old_outc, old_outc, 5, 5))
+    for i in range(old_outc):
+        old_tensor[i][i][2][2] = 1.0
+
+    unchanged.append(("Conv2d", old_tensor, torch.zeros(old_outc)))
+
+    return unchanged + [("ReLU",)] + old_descriptor[l:]
 
 # Descriptor is of the form:
 #  - [({"Conv2d"|"Linear"|"MaxPool"|"ReLU"|"Flatten"|"Reshape"}, weights, bias),]
@@ -85,7 +107,7 @@ def descriptor_to_network(descriptor):
                     height = layer[1].shape[2]
 
                     # Currently only supports square kernels
-                    nn_layer = nn.Conv2d(out_channels, in_channels, width, padding=1)
+                    nn_layer = nn.Conv2d(out_channels, in_channels, width, padding=int(width/2))
                     if(torch.norm(layer[1]) != 0):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
@@ -139,9 +161,9 @@ def descriptor_to_network(descriptor):
 
 
 
-c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 1, 4, 4)
+c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 4, 4)
 net = descriptor_to_network([("Conv2d", torch.zeros((5, 3, 4, 4)), torch.zeros((5,))), \
- ("Flatten",), ("ReLU",), \
+ ("ReLU",), ("Flatten",),  \
  ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
  ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))])
 
@@ -318,6 +340,64 @@ print(total_test_loss.item())
 total_test_loss = total_test_loss / n_test
 
 endtime = int(round(time.time() * 1000))
+
+new_descriptor = insert_conv_layer(new_descriptor)
+
+net = descriptor_to_network(new_descriptor)
+
+# Calculate test loss/accuracy
+dataiter = iter(testloader)
+images, labels = dataiter.next()
+
+total = 0
+correct = 0
+total_test_loss = 0
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        loss = criterion(outputs, labels)
+        total_test_loss += loss
+        outputs = net(images)
+        loss, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(correct / total)
+print(total_test_loss.item())
+
+epoch = 1
+running_loss = 0.0
+total_loss   = 0.0
+correct_train = 0
+
+# Time code found here: https://stackoverflow.com/questions/5998245/get-current-time-in-milliseconds-in-python
+starttime = int(round(time.time() * 1000))
+
+for i, data in enumerate(trainloader, 0):
+    # get the inputs; data is a list of [inputs, labels]
+    inputs, labels = data
+
+    # zero the parameter gradients
+    optimizer.zero_grad()
+
+    # forward + backward + optimize
+    outputs = net(inputs)
+    loss = criterion(outputs, labels)
+    loss.backward()
+    optimizer.step()
+
+    # print statistics
+    running_loss += loss.item()
+    total_loss   += loss.item()
+
+    _, predicted = torch.max(outputs.data, 1)
+    correct_train += (predicted == labels).sum().item()
+
+    if i % 2000 == 1999:    # print every 2000 mini-batches
+        print('[%d/%d, %5d/%5d] loss: %.3f' %
+                (epoch + 1, 2, i + 1, len(trainloader), running_loss / 2000))
+        running_loss = 0.0
 
 # Calculate test loss/accuracy
 dataiter = iter(testloader)
