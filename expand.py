@@ -6,6 +6,10 @@ import torch.nn.functional as F
 
 from dimensions import conv_dimensions, pool_dimensions
 
+import math
+import csv
+import time
+
 
 def insert_in_channel(old_filter, num_channels):
     old_filter_outc = old_filter.shape[0]
@@ -46,13 +50,19 @@ def add_output_to_bias(old_bias, num_outs):
     return torch.cat((old_bias, torch.zeros((num_outs))))
 
 
-import math
-import csv
-import time
 
 class Flatten(nn.Module):
     def forward(self, input):
         return input.view(-1, int(input.numel()/input.shape[0]))
+
+# A new layer always goes at the very end of the model
+def insert_layer(old_descriptor):
+
+    old_layer_shape = old_descriptor[-1][1].shape[1]
+
+    new_layer = [("Linear", torch.eye(old_layer_shape), torch.zeros(old_layer_shape)), ("ReLU",)]
+
+    return old_descriptor[:len(old_descriptor)-1] + new_layer + [old_descriptor[-1]]
 
 
 # Descriptor is of the form:
@@ -76,7 +86,7 @@ def descriptor_to_network(descriptor):
 
                     # Currently only supports square kernels
                     nn_layer = nn.Conv2d(out_channels, in_channels, width, padding=1)
-                    if(torch.norm(layer[2]) != 0):
+                    if(torch.norm(layer[1]) != 0):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
@@ -85,7 +95,7 @@ def descriptor_to_network(descriptor):
                     out_size = layer[1].shape[0]
 
                     nn_layer = nn.Linear(in_size, out_size)
-                    if(torch.norm(layer[2]) != 0):
+                    if(torch.norm(layer[1]) != 0):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
@@ -161,7 +171,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 
 
-for epoch in range(2):  # loop over the dataset multiple times
+for epoch in range(1):  # loop over the dataset multiple times
 
     running_loss = 0.0
     total_loss   = 0.0
@@ -214,7 +224,7 @@ for epoch in range(2):  # loop over the dataset multiple times
             correct += (predicted == labels).sum().item()
 
     print(correct / total)
-    print(total_test_loss)
+    print(total_test_loss.item())
 
     total_test_loss = total_test_loss / n_test
 
@@ -222,7 +232,7 @@ for epoch in range(2):  # loop over the dataset multiple times
 
 new_descriptor = net.to_descriptor()
 
-new_net = descriptor_to_network(new_descriptor)
+net = descriptor_to_network(new_descriptor)
 
 
 # Calculate test loss/accuracy
@@ -244,4 +254,88 @@ with torch.no_grad():
         correct += (predicted == labels).sum().item()
 
 print(correct / total)
-print(total_test_loss)
+print(total_test_loss.item())
+
+
+new_descriptor = insert_layer(new_descriptor)
+
+net = descriptor_to_network(new_descriptor)
+
+epoch = 1
+running_loss = 0.0
+total_loss   = 0.0
+correct_train = 0
+
+# Time code found here: https://stackoverflow.com/questions/5998245/get-current-time-in-milliseconds-in-python
+starttime = int(round(time.time() * 1000))
+
+for i, data in enumerate(trainloader, 0):
+    # get the inputs; data is a list of [inputs, labels]
+    inputs, labels = data
+
+    # zero the parameter gradients
+    optimizer.zero_grad()
+
+    # forward + backward + optimize
+    outputs = net(inputs)
+    loss = criterion(outputs, labels)
+    loss.backward()
+    optimizer.step()
+
+    # print statistics
+    running_loss += loss.item()
+    total_loss   += loss.item()
+
+    _, predicted = torch.max(outputs.data, 1)
+    correct_train += (predicted == labels).sum().item()
+
+    if i % 2000 == 1999:    # print every 2000 mini-batches
+        print('[%d/%d, %5d/%5d] loss: %.3f' %
+                (epoch + 1, 2, i + 1, len(trainloader), running_loss / 2000))
+        running_loss = 0.0
+
+# Calculate test loss/accuracy
+dataiter = iter(testloader)
+images, labels = dataiter.next()
+
+total = 0
+correct = 0
+total_test_loss = 0
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        loss = criterion(outputs, labels)
+        total_test_loss += loss
+        outputs = net(images)
+        loss, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(correct / total)
+print(total_test_loss.item())
+
+total_test_loss = total_test_loss / n_test
+
+endtime = int(round(time.time() * 1000))
+
+# Calculate test loss/accuracy
+dataiter = iter(testloader)
+images, labels = dataiter.next()
+
+total = 0
+correct = 0
+total_test_loss = 0
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        loss = criterion(outputs, labels)
+        total_test_loss += loss
+        outputs = net(images)
+        loss, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print(correct / total)
+print(total_test_loss.item())
