@@ -7,6 +7,45 @@ import torch.nn.functional as F
 from dimensions import conv_dimensions, pool_dimensions
 
 
+def insert_in_channel(old_filter, num_channels):
+    old_filter_outc = old_filter.shape[0]
+    old_filter_inc = old_filter.shape[1]
+    old_filter_width = old_filter.shape[2]
+    old_filter_height = old_filter.shape[3]
+    new_filter = torch.zeros((old_filter_outc, num_channels, old_filter_width, old_filter_height))
+
+    return torch.cat((old_filter, new_filter), dim=1)
+
+def insert_out_channel(old_filter, num_channels):
+    old_filter_outc = old_filter.shape[0]
+    old_filter_inc = old_filter.shape[1]
+    old_filter_width = old_filter.shape[2]
+    old_filter_height = old_filter.shape[3]
+    new_filter = torch.zeros((num_channels, old_filter_inc, old_filter_width, old_filter_height))
+
+    return torch.cat((old_filter, new_filter), dim=0)
+
+def expand_conv_kernel(old_filter, pad):
+    old_filter_outc = old_filter.shape[0]
+    old_filter_inc = old_filter.shape[1]
+    old_filter_width = old_filter.shape[2]
+    old_filter_height = old_filter.shape[3]
+    new_filter = torch.zeros((old_filter_outc, old_filter_inc, old_filter_width + 2*pad, old_filter_height + 2*pad))
+
+    new_filter[:,:,pad:old_filter_width+pad, pad:old_filter_height+pad] = old_filter
+
+    return new_filter
+
+def add_cols_to_matrix(old_matrix, num_cols):
+    return torch.cat((old_matrix, torch.zeros((old_matrix.shape[0], num_cols))), dim=1)
+
+def add_rows_to_matrix(old_matrix, num_rows):
+    return torch.cat((old_matrix, torch.zeros((num_rows, old_matrix.shape[0]))), dim=0)
+
+def add_output_to_bias(old_bias, num_outs):
+    return torch.cat((old_bias, torch.zeros((num_outs))))
+
+
 import math
 import csv
 import time
