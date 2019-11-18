@@ -9,7 +9,7 @@ from dimensions import conv_dimensions, pool_dimensions
 import math
 import csv
 import time
-import torch.multiprocessing as multiprocessing
+import torch.multiprocessing as multiprocessing\
 
 import torch.optim as optim
 
@@ -125,6 +125,14 @@ def expand_conv_layer(old_descriptor, idx):
         curr_item = old_descriptor[l]
 
     return unchanged + old_descriptor[l:]
+
+def summarize_descriptor(descriptor):
+    for layer in descriptor:
+        print(layer[0], end=", ")
+        if layer[0] in ["Conv2d", "Linear"]:
+            print("%s, %s" % (layer[1].shape, layer[2].shape), end="")
+
+        print("")
 
 def insert_hidden_units(old_descriptor, idx):
     # Find the idx'th convolutional layer
@@ -275,7 +283,6 @@ def descriptor_to_network(descriptor):
 
             return new_descriptor
 
-
     return Net()
 
 # Given a descriptor, return every possible descriptor that can be made by making
@@ -320,25 +327,14 @@ def train_descriptor(descriptor, verbose=True):
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
 
-            if(verbose):
-                print("Flag")
             # zero the parameter gradients
             optimizer.zero_grad()
-            if(verbose):
-                print("Flag2")
 
             # forward + backward + optimize
             outputs = net(inputs)
             loss = criterion(outputs, labels)
-            if(verbose):
-                print("Flag3")
-                print(loss)
             loss.backward()
-            if(verbose):
-                print("Execution won't reach this statement")
             optimizer.step()
-            if(verbose):
-                print("Flag5")
 
 
             # print statistics
@@ -352,7 +348,6 @@ def train_descriptor(descriptor, verbose=True):
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
                         (epoch + 1, 2, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
-            break
 
     return net.to_descriptor()
 
@@ -389,11 +384,11 @@ def thread_manage_mutations(mutations, testloader):
         return_dict = manager.dict()
         if(NUM_CORES == 1):
             mut = mutations[0]
-            beam_search_thread(mut, trainloader, testloader, 0, return_dict)
+            beam_search_thread(mut, testloader, 0, return_dict)
             mutations = mutations[1:]
             pass
         else:
-            for w in range(NUM_CORES-1): # -1 so that we only detach once
+            for w in range(NUM_CORES): # -1 so that we only detach once
                 if mutations == []:
                     break
 
@@ -401,7 +396,6 @@ def thread_manage_mutations(mutations, testloader):
                 mut = mutations[0]
                 workers.append(multiprocessing.Process(target=beam_search_thread, args=(mut, testloader, w, return_dict,)))
                 mutations = mutations[1:]
-                print(return_dict)
 
             for worker in workers:
                 worker.start()
@@ -409,7 +403,6 @@ def thread_manage_mutations(mutations, testloader):
             for worker in workers:
                 worker.join()
 
-            print(return_dict)
             for i in return_dict.keys():
                 worker_acc, worker_loss, worker_mut = return_dict[i]
                 scores.append(worker_acc)
@@ -419,18 +412,15 @@ def thread_manage_mutations(mutations, testloader):
     return scores, new_mutations
 
 def beam_search_thread(mut, testloader, i, return_dict):
-    print("Entering beam_search_thread")
     new_mut = train_descriptor(mut)
-    print("Stage 2")
     val_acc, val_loss = evaluate_descriptor(new_mut, testloader)
-    print("Stage 3")
     return_dict[i] = (val_acc, val_loss, new_mut)
-    print("Stage 4")
 
 def beam_search(descriptor, beam_width, trainloader, testloader):
-    descriptor = train_descriptor(descriptor, verbose=False)
+    #descriptor = train_descriptor(descriptor, verbose=False)
 
-    original_acc, _ = evaluate_descriptor(descriptor, testloader)
+    original_acc = 0.0
+    #original_acc, _ = evaluate_descriptor(descriptor, testloader)
 
     print(original_acc)
     print("Generating all modifications...")
@@ -461,7 +451,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
             print("Entering manager")
             # Now for each mutation, train it calculate its validation accuracy
-            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
+            scores, mutations = thread_manage_mutations(mutations, testloader)
 
             best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
 
