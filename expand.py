@@ -16,6 +16,8 @@ import torch.optim as optim
 NUM_CORES = 4
 BEAM_WIDTH = 4
 
+birthday = int(round(time.time() * 1000))
+
 def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
     old_filter_inc = old_filter.shape[1]
@@ -481,9 +483,11 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
             print("Round %d: %s" % (round, str(best_scores[i])))
             best_mutations.append((best_scores[i], all_mutations[indices[i]]))
 
+        now = int(round(time.time() * 1000))
+
         with open("beam_search_results.csv", "a") as fd:
             for bm in best_mutations:
-                fd.write("%d, %f, %s" % (round, bm[0], summarize_descriptor(bm[1])))
+                fd.write("%d, %d, %f, %s" % (round, (now - birthday), bm[0], summarize_descriptor(bm[1])))
 
         round += 1
 
