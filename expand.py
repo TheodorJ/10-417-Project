@@ -11,12 +11,14 @@ import csv
 import time
 
 
-def insert_in_channel(old_filter, num_channels):
+def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
     old_filter_inc = old_filter.shape[1]
     old_filter_width = old_filter.shape[2]
     old_filter_height = old_filter.shape[3]
     new_filter = torch.zeros((old_filter_outc, num_channels, old_filter_width, old_filter_height))
+    if(not zeros):
+        new_filter.fill_(0.001)
 
     return torch.cat((old_filter, new_filter), dim=1)
 
@@ -150,6 +152,55 @@ def insert_hidden_units(old_descriptor, idx):
 
     return unchanged
 
+# Note: This operation (for now) can't be performed on the very last conv layer
+# because I'm not quite sure how to resize the following linear layer
+def insert_hidden_filter(old_descriptor, idx):
+    unchanged = []
+    curr_item = old_descriptor[0]
+    l = 0
+    i = 0
+    while(l < len(old_descriptor)):
+
+        input_c = 0
+        input_w = 0
+        input_h = 0
+
+        new_filter_c = 0
+        new_filter_w = 0
+        new_filter_h = 0
+
+        if curr_item[0] == "Conv2d":
+            if i == idx:
+                old_filter = curr_item[1]
+                old_bias = curr_item[2]
+                unchanged.append(("Conv2d", insert_out_channel(old_filter, old_filter.shape[0]), add_output_to_bias(old_bias, old_bias.shape[0])))
+            elif i == idx + 1:
+                old_filter = curr_item[1]
+                old_bias = curr_item[2]
+                new_filter = insert_in_channel(old_filter, old_filter.shape[1], zeros=False).shape
+                unchanged.append(("Conv2d", insert_in_channel(old_filter, old_filter.shape[1], zeros=False), old_bias))
+            else:
+                unchanged.append(curr_item)
+            i += 1
+        elif curr_item[0] == "Linear" and i - 1 == idx:
+            # The conv layer we're expanding feeds into a linear layer, so we need to append
+            # columns to it.
+
+            old_filter = curr_item[1]
+            old_bias = curr_item[2]
+            unchanged.append(("Linear", add_cols_to_matrix(old_filter, old_filter.shape[1], zeros=False), old_bias))
+
+            i += 1
+
+        else:
+            unchanged.append(curr_item)
+
+        l += 1
+        if(l < len(old_descriptor)):
+            curr_item = old_descriptor[l]
+
+    return unchanged
+
 # Descriptor is of the form:
 #  - [({"Conv2d"|"Linear"|"MaxPool"|"ReLU"|"Flatten"|"Reshape"}, weights, bias),]
 def descriptor_to_network(descriptor):
@@ -164,6 +215,7 @@ def descriptor_to_network(descriptor):
                 layer_type = layer[0]
                 if layer_type == "Conv2d":
 
+                    #print(layer[1].shape)
                     out_channels = layer[1].shape[1]
                     in_channels = layer[1].shape[0]
                     width = layer[1].shape[2]
@@ -224,8 +276,9 @@ def descriptor_to_network(descriptor):
 
 
 
-c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 4, 4)
-net = descriptor_to_network([("Conv2d", torch.zeros((5, 3, 4, 4)), torch.zeros((5,))), \
+c_out, h_out, w_out = conv_dimensions(3, 33, 33, 5, 1, 2, 4, 4)
+net = descriptor_to_network([("Conv2d", torch.zeros((3, 3, 4, 4)), torch.zeros((5,))), ("ReLU",), \
+ ("Conv2d", torch.zeros((5, 3, 4, 4)), torch.zeros((5,))), \
  ("ReLU",), ("Flatten",),  \
  ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
  ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))])
@@ -317,7 +370,7 @@ for epoch in range(1):  # loop over the dataset multiple times
 
 new_descriptor = net.to_descriptor()
 
-new_descriptor = insert_hidden_units(new_descriptor, 0)
+new_descriptor = insert_hidden_filter(new_descriptor, 0)
 
 net = descriptor_to_network(new_descriptor)
 
