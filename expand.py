@@ -278,11 +278,11 @@ def descriptor_to_network(descriptor):
 # a single change to this descriptor
 def generate_all_modifications(descriptor):
 
-    mutations
+    mutations = []
 
     conv_index = 0
     line_index = 0
-    for layer in descriptor:
+    for layer in descriptor[:len(descriptor)-1]:
         layer_type = layer[0]
         if layer_type == "Conv2d":
 
@@ -300,7 +300,7 @@ def generate_all_modifications(descriptor):
 
     return mutations
 
-def train_descriptor(descriptor, trainiter, criterion):
+def train_descriptor(descriptor, trainloader, criterion):
 
     net = descriptor_to_network(descriptor)
 
@@ -349,7 +349,7 @@ def train_descriptor(descriptor, trainiter, criterion):
 
     return net.to_descriptor()
 
-def evaluate_descriptor(descriptor, testiter, criterion):
+def evaluate_descriptor(descriptor, testloader, criterion):
     total = 0
     correct = 0
     total_test_loss = 0
@@ -366,9 +366,60 @@ def evaluate_descriptor(descriptor, testiter, criterion):
 
     total_test_loss = total_test_loss.item() / n_test
 
-    return correct / total_test_loss
+    return correct / total,  total_test_loss
 
 
+def beam_search(descriptor, beam_width, trainloader, testloader, criterion):
+    descriptor = train_descriptor(descriptor, trainloader, criterion)
+
+    original_acc, _ = evaluate_descriptor(descriptor, testloader, criterion)
+
+    # First, we get all of the mutations of this descriptor
+    mutations = generate_all_modifications(descriptor)
+
+    # Now for each mutation, train it calculate its validation accuracy
+    scores = []
+    for mut in mutations:
+        new_mut = train_descriptor(mut, trainloader, criterion)
+        val_acc, val_loss = evaluate_descriptor(new_mut, testloader, criterion)
+        scores.append(val_acc)
+
+    best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
+
+    best_mutations = []
+    for i in range(len(indices)):
+        if best_scores[i] > original_acc or True:
+            best_mutations.append((best_scores[i], mutations[indices[i]]))
+
+    round = 0
+    while(best_mutations != []):
+        all_mutations = []
+        all_scores = []
+        for bm_score, bm in best_mutations:
+            mutations += generate_all_modifications(bm)
+
+            # Now for each mutation, train it calculate its validation accuracy
+            scores = []
+            for mut in mutations:
+                new_mut = train_descriptor(mut, trainloader, criterion)
+                val_acc, val_loss = evaluate_descriptor(new_mut, testloader, criterion)
+                scores.append(val_acc)
+
+            best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
+
+            for i in range(len(indices)):
+                if best_scores[i] > bm_score or True:
+                    all_mutations.append(mutations[indices[i]])
+                    all_scores.append(best_scores[i])
+
+        best_scores, indices = torch.topk(torch.Tensor(all_scores), beam_width)
+
+        best_mutations = []
+        for i in range(len(indices)):
+            print("Round %d: %s" % (round, str(best_scores)))
+            best_mutations.append((best_scores[i], all_mutations[indices[i]]))
+
+        round += 1
 
 if __name__=="__main__":
     c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 5, 5)
@@ -377,7 +428,6 @@ if __name__=="__main__":
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))]
     net = descriptor_to_network(desc)
-
 
 
     transform = transforms.Compose(
@@ -400,6 +450,7 @@ if __name__=="__main__":
 
     criterion = nn.CrossEntropyLoss()
 
-    trained_descriptor = train_descriptor(desc, trainloader, criterion)
+    beam_search(desc, 1, trainloader, testloader, criterion)
+    #trained_descriptor = train_descriptor(desc, trainloader, criterion)
 
-    print(evaluate_descriptor(trained_descriptor, testloader, criterion))
+    #print(evaluate_descriptor(trained_descriptor, testloader, criterion))
