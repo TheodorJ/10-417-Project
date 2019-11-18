@@ -9,7 +9,7 @@ from dimensions import conv_dimensions, pool_dimensions
 import math
 import csv
 import time
-import torch.multiprocessing as multiprocessing\
+import torch.multiprocessing as multiprocessing
 
 import torch.optim as optim
 
@@ -312,7 +312,7 @@ def generate_all_modifications(descriptor):
 
     return mutations
 
-def train_descriptor(descriptor, verbose=True):
+def train_descriptor(descriptor, trainloader):
 
     net = descriptor_to_network(descriptor)
     criterion = nn.CrossEntropyLoss()
@@ -374,7 +374,7 @@ def evaluate_descriptor(descriptor, testloader):
 
     return correct / total,  total_test_loss
 
-def thread_manage_mutations(mutations, testloader):
+def thread_manage_mutations(mutations, trainloader, testloader):
     # for each mutation, train it calculate its validation accuracy
     scores = []
     new_mutations = []
@@ -385,7 +385,7 @@ def thread_manage_mutations(mutations, testloader):
         return_dict = manager.dict()
         if(NUM_CORES == 1):
             mut = mutations[0]
-            beam_search_thread(mut, testloader, 0, return_dict)
+            beam_search_thread(mut, trainloader, testloader, 0, return_dict)
             mutations = mutations[1:]
             pass
         else:
@@ -395,7 +395,7 @@ def thread_manage_mutations(mutations, testloader):
 
                 print("Evaluating a mutation...")
                 mut = mutations[0]
-                workers.append(multiprocessing.Process(target=beam_search_thread, args=(mut, testloader, w, return_dict,)))
+                workers.append(multiprocessing.Process(target=beam_search_thread, args=(mut, trainloader, testloader, w, return_dict,)))
                 mutations = mutations[1:]
 
             for worker in workers:
@@ -412,8 +412,8 @@ def thread_manage_mutations(mutations, testloader):
 
     return scores, new_mutations
 
-def beam_search_thread(mut, testloader, i, return_dict):
-    new_mut = train_descriptor(mut)
+def beam_search_thread(mut, trainloader, testloader, i, return_dict):
+    new_mut = train_descriptor(mut, trainloader)
     val_acc, val_loss = evaluate_descriptor(new_mut, testloader)
     return_dict[i] = (val_acc, val_loss, new_mut)
 
@@ -431,7 +431,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
     print("Entering manager routine...")
     # Now for each mutation, train it calculate its validation accuracy
-    scores, mutations = thread_manage_mutations(mutations, testloader)
+    scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
 
     print(scores)
     best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
@@ -453,7 +453,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
             print("Entering manager")
             # Now for each mutation, train it calculate its validation accuracy
-            scores, mutations = thread_manage_mutations(mutations, testloader)
+            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
 
             best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
 
