@@ -9,7 +9,11 @@ from dimensions import conv_dimensions, pool_dimensions
 import math
 import csv
 import time
+import torch.multiprocessing as multiprocessing
 
+import torch.optim as optim
+
+NUM_CORES = 2
 
 def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
@@ -300,14 +304,11 @@ def generate_all_modifications(descriptor):
 
     return mutations
 
-def train_descriptor(descriptor, trainloader, criterion):
+def train_descriptor(descriptor, verbose=True):
 
     net = descriptor_to_network(descriptor)
-
-    import torch.optim as optim
-
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
-
 
     for epoch in range(1):  # loop over the dataset multiple times
 
@@ -315,21 +316,30 @@ def train_descriptor(descriptor, trainloader, criterion):
         total_loss   = 0.0
         correct_train = 0
 
-        # Time code found here: https://stackoverflow.com/questions/5998245/get-current-time-in-milliseconds-in-python
-        starttime = int(round(time.time() * 1000))
-
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
 
+            if(verbose):
+                print("Flag")
             # zero the parameter gradients
             optimizer.zero_grad()
+            if(verbose):
+                print("Flag2")
 
             # forward + backward + optimize
             outputs = net(inputs)
             loss = criterion(outputs, labels)
+            if(verbose):
+                print("Flag3")
+                print(loss)
             loss.backward()
+            if(verbose):
+                print("Execution won't reach this statement")
             optimizer.step()
+            if(verbose):
+                print("Flag5")
+
 
             # print statistics
             running_loss += loss.item()
@@ -342,17 +352,17 @@ def train_descriptor(descriptor, trainloader, criterion):
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
                         (epoch + 1, 2, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
-
-        # Calculate test loss/accuracy
-        dataiter = iter(testloader)
-        images, labels = dataiter.next()
+            break
 
     return net.to_descriptor()
 
-def evaluate_descriptor(descriptor, testloader, criterion):
+def evaluate_descriptor(descriptor, testloader):
+    # Calculate test loss/accuracy
+    net = descriptor_to_network(descriptor)
     total = 0
     correct = 0
     total_test_loss = 0
+    criterion = nn.CrossEntropyLoss()
     with torch.no_grad():
         for data in testloader:
             images, labels = data
@@ -368,22 +378,70 @@ def evaluate_descriptor(descriptor, testloader, criterion):
 
     return correct / total,  total_test_loss
 
+def thread_manage_mutations(mutations, testloader):
+    # for each mutation, train it calculate its validation accuracy
+    scores = []
+    new_mutations = []
 
-def beam_search(descriptor, beam_width, trainloader, testloader, criterion):
-    descriptor = train_descriptor(descriptor, trainloader, criterion)
+    while(mutations != []):
+        workers = []
+        manager = multiprocessing.Manager()
+        return_dict = manager.dict()
+        if(NUM_CORES == 1):
+            mut = mutations[0]
+            beam_search_thread(mut, trainloader, testloader, 0, return_dict)
+            mutations = mutations[1:]
+            pass
+        else:
+            for w in range(NUM_CORES-1): # -1 so that we only detach once
+                if mutations == []:
+                    break
 
-    original_acc, _ = evaluate_descriptor(descriptor, testloader, criterion)
+                print("Evaluating a mutation...")
+                mut = mutations[0]
+                workers.append(multiprocessing.Process(target=beam_search_thread, args=(mut, testloader, w, return_dict,)))
+                mutations = mutations[1:]
+                print(return_dict)
 
+            for worker in workers:
+                worker.start()
+
+            for worker in workers:
+                worker.join()
+
+            print(return_dict)
+            for i in return_dict.keys():
+                worker_acc, worker_loss, worker_mut = return_dict[i]
+                scores.append(worker_acc)
+                new_mutations.append(worker_mut)
+
+
+    return scores, new_mutations
+
+def beam_search_thread(mut, testloader, i, return_dict):
+    print("Entering beam_search_thread")
+    new_mut = train_descriptor(mut)
+    print("Stage 2")
+    val_acc, val_loss = evaluate_descriptor(new_mut, testloader)
+    print("Stage 3")
+    return_dict[i] = (val_acc, val_loss, new_mut)
+    print("Stage 4")
+
+def beam_search(descriptor, beam_width, trainloader, testloader):
+    descriptor = train_descriptor(descriptor, verbose=False)
+
+    original_acc, _ = evaluate_descriptor(descriptor, testloader)
+
+    print(original_acc)
+    print("Generating all modifications...")
     # First, we get all of the mutations of this descriptor
     mutations = generate_all_modifications(descriptor)
 
+    print("Entering manager routine...")
     # Now for each mutation, train it calculate its validation accuracy
-    scores = []
-    for mut in mutations:
-        new_mut = train_descriptor(mut, trainloader, criterion)
-        val_acc, val_loss = evaluate_descriptor(new_mut, testloader, criterion)
-        scores.append(val_acc)
+    scores, mutations = thread_manage_mutations(mutations, testloader)
 
+    print(scores)
     best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
 
     best_mutations = []
@@ -391,19 +449,19 @@ def beam_search(descriptor, beam_width, trainloader, testloader, criterion):
         if best_scores[i] > original_acc or True:
             best_mutations.append((best_scores[i], mutations[indices[i]]))
 
+    print("Now have %s mutations" % len(best_mutations))
+
     round = 0
     while(best_mutations != []):
         all_mutations = []
         all_scores = []
         for bm_score, bm in best_mutations:
-            mutations += generate_all_modifications(bm)
+            print("Generating modifications...")
+            mutations = generate_all_modifications(bm)
 
+            print("Entering manager")
             # Now for each mutation, train it calculate its validation accuracy
-            scores = []
-            for mut in mutations:
-                new_mut = train_descriptor(mut, trainloader, criterion)
-                val_acc, val_loss = evaluate_descriptor(new_mut, testloader, criterion)
-                scores.append(val_acc)
+            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
 
             best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
 
@@ -416,7 +474,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader, criterion):
 
         best_mutations = []
         for i in range(len(indices)):
-            print("Round %d: %s" % (round, str(best_scores)))
+            print("Round %d: %s" % (round, str(best_scores[i])))
             best_mutations.append((best_scores[i], all_mutations[indices[i]]))
 
         round += 1
@@ -427,7 +485,6 @@ if __name__=="__main__":
      ("ReLU",), ("Flatten",),  \
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))]
-    net = descriptor_to_network(desc)
 
 
     transform = transforms.Compose(
@@ -448,9 +505,7 @@ if __name__=="__main__":
     h_in    = trainset[0][0].shape[1]
     w_in    = trainset[0][0].shape[2]
 
-    criterion = nn.CrossEntropyLoss()
-
-    beam_search(desc, 1, trainloader, testloader, criterion)
+    beam_search(desc, 2, trainloader, testloader)
     #trained_descriptor = train_descriptor(desc, trainloader, criterion)
 
     #print(evaluate_descriptor(trained_descriptor, testloader, criterion))
