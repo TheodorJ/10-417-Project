@@ -128,12 +128,16 @@ def expand_conv_layer(old_descriptor, idx):
     return unchanged + old_descriptor[l:]
 
 def summarize_descriptor(descriptor):
+    s = "\""
     for layer in descriptor:
-        print(layer[0], end=", ")
+        s += layer[0] + ":"
         if layer[0] in ["Conv2d", "Linear"]:
-            print("%s, %s" % (layer[1].shape, layer[2].shape), end="")
+            s += "(" + str(layer[1].shape) + ";" + str(layer[2].shape) + ")"
 
-        print("")
+        s += "->"
+    s += "\""
+
+    return s
 
 def insert_hidden_units(old_descriptor, idx):
     # Find the idx'th convolutional layer
@@ -441,9 +445,11 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         if best_scores[i] > original_acc or True:
             best_mutations.append((best_scores[i], mutations[indices[i]]))
 
-    print("Now have %s mutations" % len(best_mutations))
+    with open("beam_search_results.csv", "a") as fd:
+        for bm in best_mutations:
+            fd.write("0, %f, %s\n" % (bm[0], summarize_descriptor(bm[1])))
 
-    round = 0
+    round = 1
     while(best_mutations != []):
         all_mutations = []
         all_scores = []
@@ -474,6 +480,10 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         for i in range(len(indices)):
             print("Round %d: %s" % (round, str(best_scores[i])))
             best_mutations.append((best_scores[i], all_mutations[indices[i]]))
+
+        with open("beam_search_results.csv", "a") as fd:
+            for bm in best_mutations:
+                fd.write("%d, %f, %s" % (round, bm[0], summarize_descriptor(bm[1])))
 
         round += 1
 
