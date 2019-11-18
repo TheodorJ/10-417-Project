@@ -290,7 +290,7 @@ def generate_all_modifications(descriptor):
             mutations += [expand_conv_layer(descriptor, conv_index)]
 
             conv_index += 1
-        elif layer_type = "Linear":
+        elif layer_type == "Linear":
             mutations += [insert_hidden_units(descriptor, line_index)]
 
             line_index += 1
@@ -300,38 +300,12 @@ def generate_all_modifications(descriptor):
 
     return mutations
 
+def train_descriptor(descriptor, trainiter, criterion):
 
-if __name__=="__main__":
-    c_out, h_out, w_out = conv_dimensions(3, 33, 33, 5, 1, 2, 4, 4)
-    net = descriptor_to_network([("Conv2d", torch.zeros((3, 3, 4, 4)), torch.zeros((5,))), ("ReLU",), \
-     ("Conv2d", torch.zeros((5, 3, 4, 4)), torch.zeros((5,))), \
-     ("ReLU",), ("Flatten",),  \
-     ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
-     ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))])
-
-
-
-    transform = transforms.Compose(
-                [transforms.ToTensor(),
-                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
-
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
-
-    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-    n_test  = len(testset)
-    n_train = len(trainset)
-    c_in    = trainset[0][0].shape[0]
-    h_in    = trainset[0][0].shape[1]
-    w_in    = trainset[0][0].shape[2]
+    net = descriptor_to_network(descriptor)
 
     import torch.optim as optim
 
-    criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 
 
@@ -373,29 +347,59 @@ if __name__=="__main__":
         dataiter = iter(testloader)
         images, labels = dataiter.next()
 
-        total = 0
-        correct = 0
-        total_test_loss = 0
-        with torch.no_grad():
-            for data in testloader:
-                images, labels = data
-                outputs = net(images)
-                loss = criterion(outputs, labels)
-                total_test_loss += loss
-                outputs = net(images)
-                loss, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+    return net.to_descriptor()
 
-        print(correct / total)
-        print(total_test_loss.item())
+def evaluate_descriptor(descriptor, testiter, criterion):
+    total = 0
+    correct = 0
+    total_test_loss = 0
+    with torch.no_grad():
+        for data in testloader:
+            images, labels = data
+            outputs = net(images)
+            loss = criterion(outputs, labels)
+            total_test_loss += loss
+            outputs = net(images)
+            loss, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-        total_test_loss = total_test_loss / n_test
+    total_test_loss = total_test_loss.item() / n_test
 
-        endtime = int(round(time.time() * 1000))
+    return correct / total_test_loss
 
-    new_descriptor = net.to_descriptor()
 
-    new_descriptor = insert_hidden_filter(new_descriptor, 0)
 
-    net = descriptor_to_network(new_descriptor)
+if __name__=="__main__":
+    c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 5, 5)
+    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((5,))), \
+     ("ReLU",), ("Flatten",),  \
+     ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
+     ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))]
+    net = descriptor_to_network(desc)
+
+
+
+    transform = transforms.Compose(
+                [transforms.ToTensor(),
+                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
+
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
+
+    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+    n_test  = len(testset)
+    n_train = len(trainset)
+    c_in    = trainset[0][0].shape[0]
+    h_in    = trainset[0][0].shape[1]
+    w_in    = trainset[0][0].shape[2]
+
+    criterion = nn.CrossEntropyLoss()
+
+    trained_descriptor = train_descriptor(desc, trainloader, criterion)
+
+    print(evaluate_descriptor(trained_descriptor, testloader, criterion))
