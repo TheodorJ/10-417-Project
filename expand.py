@@ -13,7 +13,7 @@ import torch.multiprocessing as multiprocessing
 
 import torch.optim as optim
 
-NUM_CORES = 4
+NUM_CORES = 2
 BEAM_WIDTH = 4
 
 birthday = int(round(time.time() * 1000))
@@ -242,7 +242,7 @@ def descriptor_to_network(descriptor):
 
                     # Currently only supports square kernels
                     nn_layer = nn.Conv2d(out_channels, in_channels, width, padding=int(width/2))
-                    if(torch.norm(layer[1]) != 0):
+                    if(layer[1].shape[0] == layer[2].shape):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
@@ -251,7 +251,7 @@ def descriptor_to_network(descriptor):
                     out_size = layer[1].shape[0]
 
                     nn_layer = nn.Linear(in_size, out_size)
-                    if(torch.norm(layer[1]) != 0):
+                    if(layer[1].shape[0] == layer[2].shape):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
@@ -493,10 +493,10 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
 if __name__=="__main__":
     c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 5, 5)
-    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((5,))), ("ReLU",), \
+    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
       ("Flatten",),  \
-     ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
-     ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))]
+     ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
+     ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
 
 
     transform = transforms.Compose(
