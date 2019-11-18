@@ -455,6 +455,8 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
             # Now for each mutation, train it calculate its validation accuracy
             scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
 
+            # Safe because there should always be greater than beam_width
+            # models
             best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
 
             for i in range(len(indices)):
@@ -462,7 +464,11 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
                     all_mutations.append(mutations[indices[i]])
                     all_scores.append(best_scores[i])
 
-        best_scores, indices = torch.topk(torch.Tensor(all_scores), beam_width)
+        if len(all_scores) < beam_width:
+            best_scores = all_scores
+            indices = range(len(all_scores))
+        else:
+            best_scores, indices = torch.topk(torch.Tensor(all_scores), beam_width)
 
         best_mutations = []
         for i in range(len(indices)):
