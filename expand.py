@@ -13,7 +13,8 @@ import torch.multiprocessing as multiprocessing\
 
 import torch.optim as optim
 
-NUM_CORES = 2
+NUM_CORES = 4
+BEAM_WIDTH = 4
 
 def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
@@ -417,12 +418,13 @@ def beam_search_thread(mut, testloader, i, return_dict):
     return_dict[i] = (val_acc, val_loss, new_mut)
 
 def beam_search(descriptor, beam_width, trainloader, testloader):
+    # For some damn reason the line below causes all subsequent calls to
+    # loss.backward() to crash
     #descriptor = train_descriptor(descriptor, verbose=False)
 
     original_acc = 0.0
     #original_acc, _ = evaluate_descriptor(descriptor, testloader)
 
-    print(original_acc)
     print("Generating all modifications...")
     # First, we get all of the mutations of this descriptor
     mutations = generate_all_modifications(descriptor)
@@ -471,8 +473,8 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
 if __name__=="__main__":
     c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 5, 5)
-    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((5,))), \
-     ("ReLU",), ("Flatten",),  \
+    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((5,))), ("ReLU",), \
+      ("Flatten",),  \
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((84,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((10,)))]
 
@@ -495,7 +497,7 @@ if __name__=="__main__":
     h_in    = trainset[0][0].shape[1]
     w_in    = trainset[0][0].shape[2]
 
-    beam_search(desc, 2, trainloader, testloader)
+    beam_search(desc, BEAM_WIDTH, trainloader, testloader)
     #trained_descriptor = train_descriptor(desc, trainloader, criterion)
 
     #print(evaluate_descriptor(trained_descriptor, testloader, criterion))
