@@ -16,27 +16,6 @@ import torch.optim as optim
 NUM_CORES = 2
 BEAM_WIDTH = 4
 
-birthday = int(round(time.time() * 1000))
-
-
-transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
-
-testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
-
-classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-n_test  = len(testset)
-n_train = len(trainset)
-c_in    = trainset[0][0].shape[0]
-h_in    = trainset[0][0].shape[1]
-w_in    = trainset[0][0].shape[2]
-
 def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
     old_filter_inc = old_filter.shape[1]
@@ -338,6 +317,27 @@ def generate_all_modifications(descriptor):
     return mutations
 
 def train_descriptor(descriptor):
+
+    birthday = int(round(time.time() * 1000))
+
+
+    transform = transforms.Compose(
+                [transforms.ToTensor(),
+                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
+
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
+
+    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+    n_test  = len(testset)
+    n_train = len(trainset)
+    c_in    = trainset[0][0].shape[0]
+    h_in    = trainset[0][0].shape[1]
+    w_in    = trainset[0][0].shape[2]
 
     net = descriptor_to_network(descriptor)
     criterion = nn.CrossEntropyLoss()
