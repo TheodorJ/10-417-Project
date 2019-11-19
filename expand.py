@@ -93,7 +93,7 @@ def insert_conv_layer(old_descriptor):
 
     # Not -1 because the very last layer is an activation layer
 
-    old_outc = unchanged[-2][1].shape[0]
+    old_outc = unchanged[-3][1].shape[0]
     old_tensor = torch.zeros((old_outc, old_outc, 5, 5))
     for i in range(old_outc):
         old_tensor[i][i][2][2] = 1.0
@@ -283,6 +283,9 @@ def descriptor_to_network(descriptor):
 
 
                     new_descriptor.append((layer_type, weights, bias))
+                elif layer_type == "MaxPool":
+                    mp_size = self.layers[i].kernel_size
+                    new_descriptor.append((layer_type, torch.zeros(mp_size)))
                 else:
                     new_descriptor.append((layer_type,))
 
@@ -498,9 +501,9 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         round_num += 1
 
 if __name__=="__main__":
-    c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 5, 5)
+    c_out, h_out, w_out = conv_dimensions(3, 16, 16, 5, 1, 2, 5, 5)
     desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
-      ("Flatten",),  \
+      ("MaxPool", torch.zeros((2))), ("Flatten",),  \
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
 
