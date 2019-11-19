@@ -18,6 +18,25 @@ BEAM_WIDTH = 4
 
 birthday = int(round(time.time() * 1000))
 
+
+transform = transforms.Compose(
+            [transforms.ToTensor(),
+             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
+
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
+
+classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+n_test  = len(testset)
+n_train = len(trainset)
+c_in    = trainset[0][0].shape[0]
+h_in    = trainset[0][0].shape[1]
+w_in    = trainset[0][0].shape[2]
+
 def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
     old_filter_inc = old_filter.shape[1]
@@ -243,8 +262,8 @@ def descriptor_to_network(descriptor):
                     # Currently only supports square kernels
                     nn_layer = nn.Conv2d(out_channels, in_channels, width, padding=int(width/2))
                     if(layer[1].shape[0] == layer[2].shape):
-                        nn_layer.weight.data = layer[1]
-                        nn_layer.bias.data = layer[2]
+                        nn_layer.weight.data = copy.deepcopy(layer[1])
+                        nn_layer.bias.data = copy.deepcopy(layer[2])
                     layers.append(nn_layer)
                 elif layer_type == "Linear":
                     in_size = layer[1].shape[1]
@@ -252,8 +271,8 @@ def descriptor_to_network(descriptor):
 
                     nn_layer = nn.Linear(in_size, out_size)
                     if(layer[1].shape[0] == layer[2].shape):
-                        nn_layer.weight.data = layer[1]
-                        nn_layer.bias.data = layer[2]
+                        nn_layer.weight.data = copy.deepcopy(layer[1])
+                        nn_layer.bias.data = copy.deepcopy(layer[2])
                     layers.append(nn_layer)
                 elif layer_type == "MaxPool":
                     mp_size = layer[1].shape[0]
@@ -318,7 +337,7 @@ def generate_all_modifications(descriptor):
 
     return mutations
 
-def train_descriptor(descriptor, trainloader):
+def train_descriptor(descriptor):
 
     net = descriptor_to_network(descriptor)
     criterion = nn.CrossEntropyLoss()
@@ -358,7 +377,7 @@ def train_descriptor(descriptor, trainloader):
 
     return net.to_descriptor()
 
-def evaluate_descriptor(descriptor, testloader):
+def evaluate_descriptor(descriptor):
     # Calculate test loss/accuracy
     net = descriptor_to_network(descriptor)
     total = 0
@@ -380,7 +399,7 @@ def evaluate_descriptor(descriptor, testloader):
 
     return correct / total,  total_test_loss
 
-def thread_manage_mutations(mutations, trainloader, testloader):
+def thread_manage_mutations(mutations):
     # for each mutation, train it calculate its validation accuracy
     scores = []
     new_mutations = []
@@ -391,7 +410,7 @@ def thread_manage_mutations(mutations, trainloader, testloader):
         return_dict = manager.dict()
         if(NUM_CORES == 1):
             mut = mutations[0]
-            beam_search_thread(mut, trainloader, testloader, 0, return_dict)
+            beam_search_thread(mut, 0, return_dict)
             mutations = mutations[1:]
             pass
         else:
@@ -401,7 +420,7 @@ def thread_manage_mutations(mutations, trainloader, testloader):
 
                 print("Evaluating a mutation...")
                 mut = mutations[0]
-                workers.append(multiprocessing.Process(target=beam_search_thread, args=(mut, trainloader, testloader, w, return_dict,)))
+                workers.append(multiprocessing.Process(target=beam_search_thread, args=(mut, w, return_dict,)))
                 mutations = mutations[1:]
 
             for worker in workers:
@@ -418,18 +437,18 @@ def thread_manage_mutations(mutations, trainloader, testloader):
 
     return scores, new_mutations
 
-def beam_search_thread(mut, trainloader, testloader, i, return_dict):
-    new_mut = train_descriptor(mut, trainloader)
-    val_acc, val_loss = evaluate_descriptor(new_mut, testloader)
+def beam_search_thread(mut, i, return_dict):
+    new_mut = train_descriptor(mut)
+    val_acc, val_loss = evaluate_descriptor(new_mut)
     return_dict[i] = (val_acc, val_loss, new_mut)
 
-def beam_search(descriptor, beam_width, trainloader, testloader):
+def beam_search(descriptor, beam_width):
     # For some damn reason the line below causes all subsequent calls to
     # loss.backward() to crash
     #descriptor = train_descriptor(descriptor, verbose=False)
 
     original_acc = 0.0
-    #original_acc, _ = evaluate_descriptor(descriptor, testloader)
+    #original_acc, _ = evaluate_descriptor(descriptor)
 
     print("Generating all modifications...")
     # First, we get all of the mutations of this descriptor
@@ -437,7 +456,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
     print("Entering manager routine...")
     # Now for each mutation, train it calculate its validation accuracy
-    scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
+    scores, mutations = thread_manage_mutations(mutations)
 
     print(scores)
     best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
@@ -461,7 +480,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
             print("Entering manager")
             # Now for each mutation, train it calculate its validation accuracy
-            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
+            scores, mutations = thread_manage_mutations(mutations)
 
             # Safe because there should always be greater than beam_width
             # models
@@ -499,25 +518,7 @@ if __name__=="__main__":
      ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
 
 
-    transform = transforms.Compose(
-                [transforms.ToTensor(),
-                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    beam_search(desc, BEAM_WIDTH)
+    #trained_descriptor = train_descriptor(desc, criterion)
 
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
-
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
-
-    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-    n_test  = len(testset)
-    n_train = len(trainset)
-    c_in    = trainset[0][0].shape[0]
-    h_in    = trainset[0][0].shape[1]
-    w_in    = trainset[0][0].shape[2]
-
-    beam_search(desc, BEAM_WIDTH, trainloader, testloader)
-    #trained_descriptor = train_descriptor(desc, trainloader, criterion)
-
-    #print(evaluate_descriptor(trained_descriptor, testloader, criterion))
+    #print(evaluate_descriptor(trained_descriptor, criterion))
