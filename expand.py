@@ -386,15 +386,20 @@ def thread_manage_mutations(mutations, trainloader, testloader):
     new_mutations = []
 
     while(mutations != []):
-        workers = []
-        manager = multiprocessing.Manager()
-        return_dict = manager.dict()
         if(NUM_CORES == 1):
             mut = mutations[0]
             beam_search_thread(mut, trainloader, testloader, 0, return_dict)
             mutations = mutations[1:]
+            
+            for i in return_dict.keys():
+                worker_acc, worker_loss, worker_mut = return_dict[i]
+                scores.append(worker_acc)
+                new_mutations.append(worker_mut)
             pass
         else:
+            workers = []
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
             for w in range(NUM_CORES): # -1 so that we only detach once
                 if mutations == []:
                     break
