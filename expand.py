@@ -505,8 +505,8 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
 if __name__=="__main__":
     c_out, h_out, w_out = conv_dimensions(3, 8, 8, 5, 1, 2, 5, 5)
-    desc = [("MaxPool", torch.zeros((2))), ("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
-      ("MaxPool", torch.zeros((2))), ("Flatten",),  \
+    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
+      ("MaxPool", torch.zeros((4))), ("Flatten",),  \
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
 
