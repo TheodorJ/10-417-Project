@@ -13,7 +13,7 @@ import torch.multiprocessing as multiprocessing
 
 import torch.optim as optim
 
-NUM_CORES = 2
+NUM_CORES = 1
 BEAM_WIDTH = 4
 
 birthday = int(round(time.time() * 1000))
@@ -387,10 +387,11 @@ def thread_manage_mutations(mutations, trainloader, testloader):
 
     while(mutations != []):
         if(NUM_CORES == 1):
+            return_dict = {}
             mut = mutations[0]
             beam_search_thread(mut, trainloader, testloader, 0, return_dict)
             mutations = mutations[1:]
-            
+
             for i in return_dict.keys():
                 worker_acc, worker_loss, worker_mut = return_dict[i]
                 scores.append(worker_acc)
