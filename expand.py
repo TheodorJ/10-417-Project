@@ -499,7 +499,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
         with open("beam_search_results.csv", "a") as fd:
             for bm in best_mutations:
-                fd.write("%d, %d, %f, %s" % (round_num, (now - birthday), bm[0], summarize_descriptor(bm[1])))
+                fd.write("%d, %d, %f, %s\n" % (round_num, (now - birthday), bm[0], summarize_descriptor(bm[1])))
 
         round_num += 1
 
