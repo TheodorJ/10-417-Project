@@ -93,14 +93,17 @@ def insert_conv_layer(old_descriptor):
 
     # Not -1 because the very last layer is an activation layer
 
-    old_outc = unchanged[-3][1].shape[0]
+    maxp_layer = unchanged[-1]
+    unchanged = unchanged[:len(unchanged) - 1]
+
+    old_outc = unchanged[-2][1].shape[0]
     old_tensor = torch.zeros((old_outc, old_outc, 5, 5))
     for i in range(old_outc):
         old_tensor[i][i][2][2] = 1.0
 
     unchanged.append(("Conv2d", old_tensor, torch.zeros(old_outc)))
 
-    return unchanged + [("ReLU",)] + old_descriptor[l:]
+    return unchanged + [("ReLU",), maxp_layer] + old_descriptor[l:]
 
 def expand_conv_layer(old_descriptor, idx):
     # Find the idx'th convolutional layer
@@ -502,8 +505,8 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
 if __name__=="__main__":
     c_out, h_out, w_out = conv_dimensions(3, 8, 8, 5, 1, 2, 5, 5)
-    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
-      ("MaxPool", torch.zeros((4))), ("Flatten",),  \
+    desc = [("MaxPool", torch.zeros((2))), ("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
+      ("MaxPool", torch.zeros((2))), ("Flatten",),  \
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
 
