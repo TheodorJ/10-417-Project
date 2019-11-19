@@ -457,7 +457,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         for bm in best_mutations:
             fd.write("0, %f, %s\n" % (bm[0], summarize_descriptor(bm[1])))
 
-    round = 1
+    round_num = 1
     while(best_mutations != []):
         all_mutations = []
         all_scores = []
@@ -486,7 +486,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
         best_mutations = []
         for i in range(len(indices)):
-            print("Round %d: %s" % (round, str(best_scores[i])))
+            print("Round %d: %s" % (round_num, str(best_scores[i])))
             best_mutations.append((best_scores[i], all_mutations[indices[i]]))
 
         now = int(round(time.time() * 1000))
@@ -495,7 +495,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
             for bm in best_mutations:
                 fd.write("%d, %d, %f, %s" % (round, (now - birthday), bm[0], summarize_descriptor(bm[1])))
 
-        round += 1
+        round_num += 1
 
 if __name__=="__main__":
     c_out, h_out, w_out = conv_dimensions(3, 32, 32, 5, 1, 2, 5, 5)
