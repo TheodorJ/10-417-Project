@@ -399,6 +399,11 @@ def evaluate_descriptor(descriptor):
 
     return correct / total,  total_test_loss
 
+def beam_search_thread(mut, i, return_dict):
+    new_mut = train_descriptor(mut)
+    val_acc, val_loss = evaluate_descriptor(new_mut)
+    return_dict[i] = (val_acc, val_loss, new_mut)
+
 def thread_manage_mutations(mutations):
     # for each mutation, train it calculate its validation accuracy
     scores = []
@@ -436,11 +441,6 @@ def thread_manage_mutations(mutations):
 
 
     return scores, new_mutations
-
-def beam_search_thread(mut, i, return_dict):
-    new_mut = train_descriptor(mut)
-    val_acc, val_loss = evaluate_descriptor(new_mut)
-    return_dict[i] = (val_acc, val_loss, new_mut)
 
 def beam_search(descriptor, beam_width):
     # For some damn reason the line below causes all subsequent calls to
