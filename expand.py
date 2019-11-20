@@ -245,7 +245,7 @@ def descriptor_to_network(descriptor):
 
                     # Currently only supports square kernels
                     nn_layer = nn.Conv2d(out_channels, in_channels, width, padding=int(width/2))
-                    if(layer[1].shape[0] == layer[2].shape):
+                    if(layer[1].shape[0] == layer[2].shape[0]):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
@@ -254,7 +254,7 @@ def descriptor_to_network(descriptor):
                     out_size = layer[1].shape[0]
 
                     nn_layer = nn.Linear(in_size, out_size)
-                    if(layer[1].shape[0] == layer[2].shape):
+                    if(layer[1].shape[0] == layer[2].shape[0]):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
@@ -283,7 +283,6 @@ def descriptor_to_network(descriptor):
                 if layer_type in ["Conv2d", "Linear"]:
                     weights = self.layers[i].weight.data
                     bias = self.layers[i].bias.data
-
 
                     new_descriptor.append((layer_type, weights, bias))
                 elif layer_type == "MaxPool":
@@ -362,6 +361,26 @@ def train_descriptor(descriptor, trainloader):
                         (epoch + 1, 2, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
 
+        total = 0
+        correct = 0
+        total_test_loss = 0
+        criterion = nn.CrossEntropyLoss()
+        with torch.no_grad():
+            for data in testloader:
+                images, labels = data
+                outputs = net(images)
+                loss = criterion(outputs, labels)
+                total_test_loss += loss
+                outputs = net(images)
+                loss, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        total_test_loss = total_test_loss.item() / n_test
+
+        print("Accuracy after training:")
+        print(correct / total)
+
     return net.to_descriptor()
 
 def evaluate_descriptor(descriptor, testloader):
@@ -438,10 +457,15 @@ def beam_search_thread(mut, trainloader, testloader, i, return_dict):
 def beam_search(descriptor, beam_width, trainloader, testloader):
     # For some damn reason the line below causes all subsequent calls to
     # loss.backward() to crash
-    #descriptor = train_descriptor(descriptor, verbose=False)
+    first_acc, _ = evaluate_descriptor(descriptor, testloader)
+    descriptor = train_descriptor(descriptor, trainloader)
 
-    original_acc = 0.0
-    #original_acc, _ = evaluate_descriptor(descriptor, testloader)
+
+    #original_acc = 0.0
+    original_acc, _ = evaluate_descriptor(descriptor, testloader)
+
+    mut2 = insert_conv_layer(descriptor)
+    mut_acc, _ = evaluate_descriptor(mut2, testloader)
 
     print("Generating all modifications...")
     # First, we get all of the mutations of this descriptor
