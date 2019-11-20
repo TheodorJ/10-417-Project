@@ -459,6 +459,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         if best_scores[i] > original_acc or True:
             best_mutations.append((best_scores[i], mutations[indices[i]]))
 
+    now = int(round(time.time() * 1000))
     with open("beam_search_results.csv", "a") as fd:
         for bm in best_mutations:
             fd.write("0, %d, %f, %s\n" % ((now - birthday), bm[0], summarize_descriptor(bm[1])))
