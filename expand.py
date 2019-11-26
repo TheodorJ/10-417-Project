@@ -13,6 +13,8 @@ import torch.multiprocessing as multiprocessing
 
 import torch.optim as optim
 
+import numpy as np
+
 NUM_CORES = 1
 BEAM_WIDTH = 4
 
@@ -529,30 +531,81 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         round_num += 1
 
 if __name__=="__main__":
-    c_out, h_out, w_out = conv_dimensions(3, 8, 8, 5, 1, 2, 5, 5)
-    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
-      ("MaxPool", torch.zeros((4))), ("Flatten",),  \
-     ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
-     ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
 
 
+
+    DS_H = 32
+    DS_W = 32
+
+    print("\n-------------------------------------------------------\n")
+    print('Training on Subsampled Images [%d, %d]' % (DS_H, DS_W))
+
+    # initial hyperparameter ranges for first call
     transform = transforms.Compose(
-                [transforms.ToTensor(),
-                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                [torchvision.transforms.Resize([DS_H, DS_W], interpolation=2),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
 
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
+    caltech = torchvision.datasets.ImageFolder(root='./data/caltech-101', transform=transform)
+    caltechloader = torch.utils.data.DataLoader(caltech, batch_size=1, shuffle=True, num_workers=NUM_CORES)
 
-    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+    NUM_CLASSES = 101
+    NUM_SAMPLES = len(caltechloader.dataset)
+    n_test  = NUM_SAMPLES // 10
+    n_train = NUM_SAMPLES - n_test
 
-    n_test  = len(testset)
-    n_train = len(trainset)
-    c_in    = trainset[0][0].shape[0]
-    h_in    = trainset[0][0].shape[1]
-    w_in    = trainset[0][0].shape[2]
+    trainset, testset = torch.utils.data.random_split(caltech, [n_train, n_test])
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=NUM_CORES)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=True, num_workers=NUM_CORES)
+
+
+
+    c_in = trainset[0][0].shape[0]
+    h_in = trainset[0][0].shape[1]
+    w_in = trainset[0][0].shape[2]
+
+    # these are treated as lo and hi
+    FILTER_SIZE_1_RANGE = [5,3]
+    OUT_CHANNEL_RANGE   = [10,5]
+    POOL_SIZE_RANGE     = [3, 2]
+    HIDDEN_LAYER_RANGE  = [100,40]
+
+
+    #output, input, w, h ->output +1
+    #pool size
+    # out, in -> output +1
+    # out, in -> output +1
+
+    hidden_layer = np.round(np.random.normal(HIDDEN_LAYER_RANGE[0], HIDDEN_LAYER_RANGE[1])).astype(int)
+
+    out_channels   = round(np.random.normal(OUT_CHANNEL_RANGE[0], OUT_CHANNEL_RANGE[1]))
+    out_channels   = max(out_channels,1)
+
+    filter_size1 = round(np.random.normal(FILTER_SIZE_1_RANGE[0], FILTER_SIZE_1_RANGE[1]))
+    filter_size1 = max(filter_size1,1)
+
+    pool_size = round(np.random.normal(POOL_SIZE_RANGE[0], POOL_SIZE_RANGE[1]))
+    pool_size = max(pool_size,1)
+
+
+
+    #print(filter_size1)
+    filter_size1 = 5
+    #out_channels = 5
+    #pool_size = 4
+    #hidden_layer = 84
+    c_out, h_out, w_out = conv_dimensions(3, h_in//pool_size, w_in//pool_size, out_channels, 1, 2, filter_size1, filter_size1)
+
+
+    desc = [("Conv2d", torch.zeros((out_channels, 3, filter_size1, filter_size1)), torch.zeros((out_channels+1,))), ("ReLU",), \
+    ("MaxPool", torch.zeros((pool_size))), ("Flatten",),  \
+    ("Linear", torch.zeros((hidden_layer, c_out * h_out * w_out)), torch.zeros((hidden_layer+1,))), ("ReLU",), \
+    ("Linear", torch.zeros((NUM_CLASSES, hidden_layer)), torch.zeros((NUM_CLASSES+1,)))]
+
+    #print( summarize_descriptor(desc) )
+
+
 
     beam_search(desc, BEAM_WIDTH, trainloader, testloader)
     #trained_descriptor = train_descriptor(desc, trainloader, criterion)
