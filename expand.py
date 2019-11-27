@@ -14,7 +14,7 @@ import torch.multiprocessing as multiprocessing
 import torch.optim as optim
 
 NUM_CORES = 1
-BEAM_WIDTH = 4
+BEAM_WIDTH = 2
 
 birthday = int(round(time.time() * 1000))
 
@@ -225,7 +225,7 @@ def insert_hidden_filter(old_descriptor, idx):
 
 # Descriptor is of the form:
 #  - [({"Conv2d"|"Linear"|"MaxPool"|"ReLU"|"Flatten"|"Reshape"}, weights, bias),]
-def descriptor_to_network(descriptor):
+def descriptor_to_network(descriptor, ignore_values=False):
     class Net(nn.Module):
         def __init__(self):
             super(Net, self).__init__()
@@ -233,7 +233,9 @@ def descriptor_to_network(descriptor):
             self.init_descriptor = descriptor
 
             layers = []
+            i = -1
             for layer in descriptor:
+                i += 1
                 layer_type = layer[0]
                 if layer_type == "Conv2d":
 
@@ -245,7 +247,7 @@ def descriptor_to_network(descriptor):
 
                     # Currently only supports square kernels
                     nn_layer = nn.Conv2d(out_channels, in_channels, width, padding=int(width/2))
-                    if(layer[1].shape[0] == layer[2].shape[0]):
+                    if(not ignore_values and layer[1].shape[0] == layer[2].shape[0]):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
@@ -254,10 +256,12 @@ def descriptor_to_network(descriptor):
                     out_size = layer[1].shape[0]
 
                     nn_layer = nn.Linear(in_size, out_size)
-                    if(layer[1].shape[0] == layer[2].shape[0]):
+                    if(not ignore_values and layer[1].shape[0] == layer[2].shape[0]):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
                     layers.append(nn_layer)
+                elif layer_type == "Dropout":
+                    layers.append(nn.Dropout(p=0.3))
                 elif layer_type == "MaxPool":
                     mp_size = layer[1].shape[0]
                     layers.append(nn.MaxPool2d(mp_size, mp_size))
@@ -310,7 +314,7 @@ def generate_all_modifications(descriptor):
         if layer_type == "Conv2d":
 
             mutations += [insert_hidden_filter(descriptor, conv_index)]
-            mutations += [expand_conv_layer(descriptor, conv_index)]
+            #mutations += [expand_conv_layer(descriptor, conv_index)]
 
             conv_index += 1
         elif layer_type == "Linear":
@@ -318,22 +322,26 @@ def generate_all_modifications(descriptor):
 
             line_index += 1
 
-    mutations += [insert_conv_layer(descriptor)]
-    mutations += [insert_layer(descriptor)]
+    mutations += [insert_conv_layer(insert_conv_layer(descriptor))]
+    mutations += [insert_layer(insert_layer(descriptor))]
 
     return mutations
 
-def train_descriptor(descriptor, trainloader):
+def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01):
 
-    net = descriptor_to_network(descriptor)
+    net = descriptor_to_network(descriptor, ignore_values=False)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
+    lr = 0.01
 
-    for epoch in range(1):  # loop over the dataset multiple times
+
+    for epoch in range(num_epochs):  # loop over the dataset multiple times
 
         running_loss = 0.0
         total_loss   = 0.0
         correct_train = 0
+
+        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.5)
+        #lr /= 10
 
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
@@ -358,15 +366,16 @@ def train_descriptor(descriptor, trainloader):
 
             if i % 2000 == 1999:    # print every 2000 mini-batches
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
-                        (epoch + 1, 2, i + 1, len(trainloader), running_loss / 2000))
+                        (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
+
 
         total = 0
         correct = 0
         total_test_loss = 0
         criterion = nn.CrossEntropyLoss()
         with torch.no_grad():
-            for data in testloader:
+            for data in trainloader:
                 images, labels = data
                 outputs = net(images)
                 loss = criterion(outputs, labels)
@@ -378,14 +387,14 @@ def train_descriptor(descriptor, trainloader):
 
         total_test_loss = total_test_loss.item() / n_test
 
-        print("Accuracy after training:")
+        print("Train Accuracy after training:")
         print(correct / total)
 
     return net.to_descriptor()
 
 def evaluate_descriptor(descriptor, testloader):
     # Calculate test loss/accuracy
-    net = descriptor_to_network(descriptor)
+    net = descriptor_to_network(descriptor, ignore_values=False)
     total = 0
     correct = 0
     total_test_loss = 0
@@ -405,7 +414,7 @@ def evaluate_descriptor(descriptor, testloader):
 
     return correct / total,  total_test_loss
 
-def thread_manage_mutations(mutations, trainloader, testloader):
+def thread_manage_mutations(mutations, trainloader, testloader, lr):
     # for each mutation, train it calculate its validation accuracy
     scores = []
     new_mutations = []
@@ -414,7 +423,7 @@ def thread_manage_mutations(mutations, trainloader, testloader):
         if(NUM_CORES == 1):
             return_dict = {}
             mut = mutations[0]
-            beam_search_thread(mut, trainloader, testloader, 0, return_dict)
+            beam_search_thread(mut, trainloader, testloader, 0, return_dict, lr)
             mutations = mutations[1:]
 
             for i in return_dict.keys():
@@ -449,34 +458,35 @@ def thread_manage_mutations(mutations, trainloader, testloader):
 
     return scores, new_mutations
 
-def beam_search_thread(mut, trainloader, testloader, i, return_dict):
-    new_mut = train_descriptor(mut, trainloader)
+def beam_search_thread(mut, trainloader, testloader, i, return_dict, lr=0.01):
+    new_mut = train_descriptor(mut, trainloader, num_epochs=1, lr=lr)
     val_acc, val_loss = evaluate_descriptor(new_mut, testloader)
+    print("val_acc = %f" % val_acc)
     return_dict[i] = (val_acc, val_loss, new_mut)
 
 def beam_search(descriptor, beam_width, trainloader, testloader):
     # For some damn reason the line below causes all subsequent calls to
     # loss.backward() to crash
-    first_acc, _ = evaluate_descriptor(descriptor, testloader)
-    descriptor = train_descriptor(descriptor, trainloader)
+    #first_acc, _ = evaluate_descriptor(descriptor, testloader)
+    descriptor = train_descriptor(descriptor, trainloader, num_epochs=2)
 
 
     #original_acc = 0.0
     original_acc, _ = evaluate_descriptor(descriptor, testloader)
-
-    mut2 = insert_conv_layer(descriptor)
-    mut_acc, _ = evaluate_descriptor(mut2, testloader)
+    print("Accuracy to beat: %f" % original_acc)
 
     print("Generating all modifications...")
     # First, we get all of the mutations of this descriptor
     mutations = generate_all_modifications(descriptor)
 
+    lr = 0.001
+
     print("Entering manager routine...")
     # Now for each mutation, train it calculate its validation accuracy
-    scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
+    scores, mutations = thread_manage_mutations(mutations, trainloader, testloader, lr=lr)
 
-    print(scores)
     best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
+    print(best_scores)
 
     best_mutations = []
     for i in range(len(indices)):
@@ -490,6 +500,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
     round_num = 1
     while(best_mutations != []):
+        lr /= 10
         all_mutations = []
         all_scores = []
         for bm_score, bm in best_mutations:
@@ -498,7 +509,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
             print("Entering manager")
             # Now for each mutation, train it calculate its validation accuracy
-            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader)
+            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader, lr=lr)
 
             # Safe because there should always be greater than beam_width
             # models
@@ -529,9 +540,9 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         round_num += 1
 
 if __name__=="__main__":
-    c_out, h_out, w_out = conv_dimensions(3, 8, 8, 5, 1, 2, 5, 5)
-    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
-      ("MaxPool", torch.zeros((4))), ("Flatten",),  \
+    c_out, h_out, w_out = conv_dimensions(3, 16, 16, 32, 1, 2, 5, 5)
+    desc = [("Conv2d", torch.zeros((7, 3, 5, 5)), torch.zeros((8,))), ("ReLU",), \
+      ("MaxPool", torch.zeros((2))), ("Flatten",),  \
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
 
@@ -541,10 +552,10 @@ if __name__=="__main__":
                  transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=4)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=4)
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
