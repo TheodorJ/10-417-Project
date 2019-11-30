@@ -105,6 +105,43 @@ def insert_conv_layer(old_descriptor):
 
     return unchanged + [("ReLU",), maxp_layer] + old_descriptor[l:]
 
+# A new conv layer should always be appended to the end of the encoder
+def insert_conv_layer_maxpool(old_descriptor):
+    # First things first, find the very last convolutional layer
+    unchanged = []
+    curr_item = old_descriptor[0]
+    l = 0
+    while(curr_item[0] != "Flatten"):
+        unchanged.append(curr_item)
+
+        l += 1
+        curr_item = old_descriptor[l]
+
+    # Not -1 because the very last layer is an activation layer
+
+    maxp_layer = unchanged[-1]
+    #unchanged = unchanged[:len(unchanged) - 1]
+
+    old_outc = unchanged[-3][1].shape[0]
+    old_tensor = torch.zeros((old_outc, old_outc, 5, 5))
+    for i in range(old_outc):
+        old_tensor[i][i][2][2] = 1.0
+
+    unchanged.append(("Conv2d", old_tensor, torch.zeros(old_outc)))
+    unchanged.append(("ReLU",))
+    unchanged.append(("MaxPool", torch.zeros(2)))
+
+    for layer in old_descriptor[l:]:
+        l += 1
+        if layer[0] == "Linear":
+            unchanged.append(("Linear", torch.zeros((layer[1].shape[0], int(layer[1].shape[1]/4))), torch.zeros((layer[2].shape[0]+1,))))
+
+            break
+        else:
+            unchanged.append(layer)
+
+    return unchanged + old_descriptor[l:]
+
 def expand_conv_layer(old_descriptor, idx):
     # Find the idx'th convolutional layer
     # First things first, find the very last convolutional layer
@@ -314,7 +351,7 @@ def generate_all_modifications(descriptor):
         if layer_type == "Conv2d":
 
             mutations += [insert_hidden_filter(descriptor, conv_index)]
-            #mutations += [expand_conv_layer(descriptor, conv_index)]
+            mutations += [expand_conv_layer(descriptor, conv_index)]
 
             conv_index += 1
         elif layer_type == "Linear":
@@ -322,8 +359,9 @@ def generate_all_modifications(descriptor):
 
             line_index += 1
 
-    mutations += [insert_conv_layer(insert_conv_layer(descriptor))]
-    mutations += [insert_layer(insert_layer(descriptor))]
+    mutations += [insert_conv_layer(descriptor)]
+    mutations += [insert_conv_layer_maxpool(descriptor)]
+    mutations += [insert_layer(descriptor)]
 
     return mutations
 
@@ -370,25 +408,25 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01):
                 running_loss = 0.0
 
 
-        total = 0
-        correct = 0
-        total_test_loss = 0
-        criterion = nn.CrossEntropyLoss()
-        with torch.no_grad():
-            for data in trainloader:
-                images, labels = data
-                outputs = net(images)
-                loss = criterion(outputs, labels)
-                total_test_loss += loss
-                outputs = net(images)
-                loss, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+    total = 0
+    correct = 0
+    total_test_loss = 0
+    criterion = nn.CrossEntropyLoss()
+    with torch.no_grad():
+        for data in trainloader:
+            images, labels = data
+            outputs = net(images)
+            loss = criterion(outputs, labels)
+            total_test_loss += loss
+            outputs = net(images)
+            loss, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-        total_test_loss = total_test_loss.item() / n_test
+    total_test_loss = total_test_loss.item() / n_test
 
-        print("Train Accuracy after training:")
-        print(correct / total)
+    print("Train Accuracy after training:")
+    print(correct / total)
 
     return net.to_descriptor()
 
@@ -459,6 +497,7 @@ def thread_manage_mutations(mutations, trainloader, testloader, lr):
     return scores, new_mutations
 
 def beam_search_thread(mut, trainloader, testloader, i, return_dict, lr=0.01):
+    print(summarize_descriptor(mut))
     new_mut = train_descriptor(mut, trainloader, num_epochs=1, lr=lr)
     val_acc, val_loss = evaluate_descriptor(new_mut, testloader)
     print("val_acc = %f" % val_acc)
@@ -468,7 +507,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
     # For some damn reason the line below causes all subsequent calls to
     # loss.backward() to crash
     #first_acc, _ = evaluate_descriptor(descriptor, testloader)
-    descriptor = train_descriptor(descriptor, trainloader, num_epochs=2)
+    descriptor = train_descriptor(descriptor, trainloader, num_epochs=1)
 
 
     #original_acc = 0.0
@@ -516,7 +555,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
             best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
 
             for i in range(len(indices)):
-                if best_scores[i] > bm_score or True:
+                if best_scores[i] > bm_score:
                     all_mutations.append(mutations[indices[i]])
                     all_scores.append(best_scores[i])
 
@@ -540,8 +579,8 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         round_num += 1
 
 if __name__=="__main__":
-    c_out, h_out, w_out = conv_dimensions(3, 16, 16, 32, 1, 2, 5, 5)
-    desc = [("Conv2d", torch.zeros((7, 3, 5, 5)), torch.zeros((8,))), ("ReLU",), \
+    c_out, h_out, w_out = conv_dimensions(3, 16, 16, 5, 1, 2, 5, 5)
+    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
       ("MaxPool", torch.zeros((2))), ("Flatten",),  \
      ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
      ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
