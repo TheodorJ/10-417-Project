@@ -371,7 +371,7 @@ def generate_all_modifications(descriptor):
 
     return mutations
 
-def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01):
+def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01, momentum=0.5):
 
     net = descriptor_to_network(descriptor, ignore_values=False)
     criterion = nn.CrossEntropyLoss()
@@ -386,7 +386,7 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01):
         total_loss   = 0.0
         correct_train = 0
 
-        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.5)
+        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
         #lr /= 10
 
         for i, data in enumerate(trainloader, 0):
@@ -460,7 +460,7 @@ def evaluate_descriptor(descriptor, testloader):
 
     return correct / total,  total_test_loss
 
-def thread_manage_mutations(mutations, trainloader, testloader, lr):
+def thread_manage_mutations(mutations, trainloader, testloader, lr, momentum):
     # for each mutation, train it calculate its validation accuracy
     scores = []
     new_mutations = []
@@ -469,7 +469,7 @@ def thread_manage_mutations(mutations, trainloader, testloader, lr):
         if(NUM_CORES == 1):
             return_dict = {}
             mut = mutations[0]
-            beam_search_thread(mut, trainloader, testloader, 0, return_dict, lr)
+            beam_search_thread(mut, trainloader, testloader, 0, return_dict, lr, momentum)
             mutations = mutations[1:]
 
             for i in return_dict.keys():
@@ -504,9 +504,9 @@ def thread_manage_mutations(mutations, trainloader, testloader, lr):
 
     return scores, new_mutations
 
-def beam_search_thread(mut, trainloader, testloader, i, return_dict, lr=0.01):
+def beam_search_thread(mut, trainloader, testloader, i, return_dict, lr=0.01, momentum=0.5):
     print(summarize_descriptor(mut))
-    new_mut = train_descriptor(mut, trainloader, num_epochs=1, lr=lr)
+    new_mut = train_descriptor(mut, trainloader, num_epochs=1, lr=lr, momentum=momentum)
     val_acc, val_loss = evaluate_descriptor(new_mut, testloader)
     print("val_acc = %f" % val_acc)
     return_dict[i] = (val_acc, val_loss, new_mut)
@@ -527,10 +527,11 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
     mutations = generate_all_modifications(descriptor)
 
     lr = 0.001
+    momentum = 0.7
 
     print("Entering manager routine...")
     # Now for each mutation, train it calculate its validation accuracy
-    scores, mutations = thread_manage_mutations(mutations, trainloader, testloader, lr=lr)
+    scores, mutations = thread_manage_mutations(mutations, trainloader, testloader, lr=lr, momentum=momentum)
 
     best_scores, indices = torch.topk(torch.Tensor(scores), beam_width)
     print(best_scores)
@@ -547,6 +548,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
     round_num = 1
     while(best_mutations != []):
+        #momentum += 0.2
         #lr /= 10
         all_mutations = []
         all_scores = []
@@ -556,7 +558,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
             print("Entering manager")
             # Now for each mutation, train it calculate its validation accuracy
-            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader, lr=lr)
+            scores, mutations = thread_manage_mutations(mutations, trainloader, testloader, lr=lr, momentum=momentum)
 
             # Safe because there should always be greater than beam_width
             # models
