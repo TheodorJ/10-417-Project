@@ -13,10 +13,14 @@ import torch.multiprocessing as multiprocessing
 
 import torch.optim as optim
 
+import argparse
+
 NUM_CORES = 1
 BEAM_WIDTH = 2
 
 birthday = int(round(time.time() * 1000))
+
+MOMENTUM = 0.9
 
 def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
@@ -96,6 +100,7 @@ def insert_conv_layer(old_descriptor):
     maxp_layer = unchanged[-1]
     unchanged = unchanged[:len(unchanged) - 1]
 
+    print(summarize_descriptor(unchanged))
     old_outc = unchanged[-2][1].shape[0]
     old_tensor = torch.zeros((old_outc, old_outc, 5, 5))
     for i in range(old_outc):
@@ -112,7 +117,10 @@ def insert_conv_layer_maxpool(old_descriptor):
     curr_item = old_descriptor[0]
     l = 0
     while(curr_item[0] != "Flatten"):
-        unchanged.append(curr_item)
+        if(curr_item[0] == "Conv2d"):
+            unchanged.append(("Conv2d", torch.zeros(curr_item[1].shape), torch.zeros((curr_item[2].shape[0]+1,))))
+        else:
+            unchanged.append(curr_item)
 
         l += 1
         curr_item = old_descriptor[l]
@@ -373,12 +381,13 @@ def generate_all_modifications(descriptor):
 
 def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01, momentum=0.5):
 
-    net = descriptor_to_network(descriptor, ignore_values=False)
+    net = descriptor_to_network(descriptor, ignore_values=args.no_knowledge_transfer)
     criterion = nn.CrossEntropyLoss()
-    lr = 0.01
+
+    optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
 
     if(not net.transfer_occured):
-        num_epochs *= 2
+        num_epochs *= 3
 
     for epoch in range(num_epochs):  # loop over the dataset multiple times
 
@@ -386,7 +395,7 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01, momentum=0.
         total_loss   = 0.0
         correct_train = 0
 
-        optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+
         #lr /= 10
 
         for i, data in enumerate(trainloader, 0):
@@ -414,6 +423,7 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01, momentum=0.
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
                         (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
+                break
 
 
     total = 0
@@ -515,7 +525,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
     # For some damn reason the line below causes all subsequent calls to
     # loss.backward() to crash
     #first_acc, _ = evaluate_descriptor(descriptor, testloader)
-    descriptor = train_descriptor(descriptor, trainloader, num_epochs=1)
+    descriptor = train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.001, momentum=MOMENTUM)
 
 
     #original_acc = 0.0
@@ -590,14 +600,38 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
 if __name__=="__main__":
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--no_knowledge_transfer", action="store_true")
+    parser.add_argument("--two_conv", help="2-layer convolutional network with 1 maxpool layer", action="store_true")
+    parser.add_argument("--two_conv_mp", help="2-layer convolutional network with 2 maxpool layers", action="store_true")
+    args = parser.parse_args()
+
+
     with open("beam_search_results.csv", "a") as fd:
         fd.write("Round Number, Time Taken (ms), Accuracy, Model summary\n")
 
-    c_out, h_out, w_out = conv_dimensions(3, 16, 16, 5, 1, 2, 5, 5)
-    desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
-      ("MaxPool", torch.zeros((2))), ("Flatten",),  \
-     ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
-     ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
+    if(args.two_conv_mp):
+        c_out, h_out, w_out = conv_dimensions(3, 8, 8, 32, 1, 2, 5, 5)
+        desc = [("Conv2d", torch.zeros((7, 3, 5, 5)), torch.zeros((6,))), ("ReLU",),("MaxPool", torch.zeros((2))),\
+            ("Conv2d", torch.zeros((32, 7, 5, 5)), torch.zeros((6,))), ("ReLU",), \
+          ("MaxPool", torch.zeros((2))), ("Flatten",),  \
+         ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
+         ("Linear", torch.zeros((84, 84)), torch.zeros((85,))), ("ReLU",), \
+         ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
+    elif(args.two_conv):
+        c_out, h_out, w_out = conv_dimensions(3, 16, 16, 32, 1, 2, 5, 5)
+        desc = [("Conv2d", torch.zeros((7, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
+            ("Conv2d", torch.zeros((32, 7, 5, 5)), torch.zeros((6,))), ("ReLU",), \
+          ("MaxPool", torch.zeros((2))), ("Flatten",),  \
+         ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
+         ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
+    else:
+        c_out, h_out, w_out = conv_dimensions(3, 16, 16, 7, 1, 2, 5, 5)
+        desc = [("Conv2d", torch.zeros((7, 3, 5, 5)), torch.zeros((8,))), ("ReLU",), \
+          ("MaxPool", torch.zeros((2))), ("Flatten",),  \
+         ("Linear", torch.zeros((84, c_out * h_out * w_out)), torch.zeros((85,))), ("ReLU",), \
+         ("Linear", torch.zeros((10, 84)), torch.zeros((11,)))]
+        MOMENTUM = 0.5
 
 
     transform = transforms.Compose(
