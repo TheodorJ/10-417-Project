@@ -20,7 +20,7 @@ BEAM_WIDTH = 2
 
 birthday = int(round(time.time() * 1000))
 
-MOMENTUM = 0.9
+MOMENTUM = 0.5
 
 def insert_in_channel(old_filter, num_channels, zeros=True):
     old_filter_outc = old_filter.shape[0]
@@ -423,7 +423,7 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01, momentum=0.
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
                         (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
-                break
+                #break
 
 
     total = 0
@@ -537,7 +537,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
     mutations = generate_all_modifications(descriptor)
 
     lr = 0.001
-    momentum = 0.7
+    momentum = MOMENTUM + 0.2
 
     print("Entering manager routine...")
     # Now for each mutation, train it calculate its validation accuracy
