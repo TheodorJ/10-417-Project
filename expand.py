@@ -269,6 +269,8 @@ def descriptor_to_network(descriptor, ignore_values=False):
 
             self.init_descriptor = descriptor
 
+            self.transfer_occured = True
+
             layers = []
             i = -1
             for layer in descriptor:
@@ -287,6 +289,8 @@ def descriptor_to_network(descriptor, ignore_values=False):
                     if(not ignore_values and layer[1].shape[0] == layer[2].shape[0]):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
+                    else:
+                        self.transfer_occured = False
                     layers.append(nn_layer)
                 elif layer_type == "Linear":
                     in_size = layer[1].shape[1]
@@ -296,6 +300,8 @@ def descriptor_to_network(descriptor, ignore_values=False):
                     if(not ignore_values and layer[1].shape[0] == layer[2].shape[0]):
                         nn_layer.weight.data = layer[1]
                         nn_layer.bias.data = layer[2]
+                    else:
+                        self.transfer_occured = False
                     layers.append(nn_layer)
                 elif layer_type == "Dropout":
                     layers.append(nn.Dropout(p=0.3))
@@ -371,6 +377,8 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01):
     criterion = nn.CrossEntropyLoss()
     lr = 0.01
 
+    if(not net.transfer_occured):
+        num_epochs *= 2
 
     for epoch in range(num_epochs):  # loop over the dataset multiple times
 
@@ -539,7 +547,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
     round_num = 1
     while(best_mutations != []):
-        lr /= 10
+        #lr /= 10
         all_mutations = []
         all_scores = []
         for bm_score, bm in best_mutations:
@@ -579,6 +587,10 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         round_num += 1
 
 if __name__=="__main__":
+
+    with open("beam_search_results.csv", "a") as fd:
+        fd.write("Round Number, Time Taken (ms), Accuracy, Model summary\n")
+
     c_out, h_out, w_out = conv_dimensions(3, 16, 16, 5, 1, 2, 5, 5)
     desc = [("Conv2d", torch.zeros((5, 3, 5, 5)), torch.zeros((6,))), ("ReLU",), \
       ("MaxPool", torch.zeros((2))), ("Flatten",),  \
