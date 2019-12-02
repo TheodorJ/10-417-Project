@@ -47,7 +47,7 @@ hidden_layer_tries = [[80,84], [120,84]]
 lr_tries = [0.001]
 momentum_tries = [0.9]
 
-NUM_CORES = 4
+NUM_CORES = 1
 
 RESULT_FOLDER = "results/"
 def params_to_filename(hyp):
