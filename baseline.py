@@ -13,6 +13,8 @@ import time
 
 from dimensions import *
 
+birthday = int(round(time.time() * 1000))
+
 
 
 transform = transforms.Compose(
@@ -244,3 +246,6 @@ for worker in workers:
 
 for worker in workers:
     worker.join()
+
+now = int(round(time.time() * 1000))
+print((now - birthday))
