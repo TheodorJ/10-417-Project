@@ -423,7 +423,7 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01, momentum=0.
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
                         (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
-                break
+                #break
 
 
     total = 0
