@@ -423,7 +423,7 @@ def train_descriptor(descriptor, trainloader, num_epochs=1, lr=0.01, momentum=0.
                 print('[%d/%d, %5d/%5d] loss: %.3f' %
                         (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
-                #break
+                break
 
 
     total = 0
@@ -552,7 +552,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
             best_mutations.append((best_scores[i], mutations[indices[i]]))
 
     now = int(round(time.time() * 1000))
-    with open("beam_search_results.csv", "a") as fd:
+    with open(args.results_file, "a") as fd:
         for bm in best_mutations:
             fd.write("0, %d, %f, %s\n" % ((now - birthday), bm[0], summarize_descriptor(bm[1])))
 
@@ -592,7 +592,7 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
 
         now = int(round(time.time() * 1000))
 
-        with open("beam_search_results.csv", "a") as fd:
+        with open(args.results_file, "a") as fd:
             for bm in best_mutations:
                 fd.write("%d, %d, %f, %s\n" % (round_num, (now - birthday), bm[0], summarize_descriptor(bm[1])))
 
@@ -604,10 +604,11 @@ if __name__=="__main__":
     parser.add_argument("--no_knowledge_transfer", action="store_true")
     parser.add_argument("--two_conv", help="2-layer convolutional network with 1 maxpool layer", action="store_true")
     parser.add_argument("--two_conv_mp", help="2-layer convolutional network with 2 maxpool layers", action="store_true")
+    parser.add_argument("--results_file", help="filename to output results to", default="beam_search_results.csv")
     args = parser.parse_args()
 
 
-    with open("beam_search_results.csv", "a") as fd:
+    with open(args.results_file, "a") as fd:
         fd.write("Round Number, Time Taken (ms), Accuracy, Model summary\n")
 
     if(args.two_conv_mp):
