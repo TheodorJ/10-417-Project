@@ -191,7 +191,6 @@ def train_parameters(hyp):
     net_loss = total_loss / n_train
     net_acc  = correct / n_test
 
-
     print('Finished Training')
 
     '''
