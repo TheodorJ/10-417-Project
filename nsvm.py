@@ -51,12 +51,12 @@ transform = transforms.Compose(
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                         download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=128,
                                           shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                        download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=4,
+testloader = torch.utils.data.DataLoader(testset, batch_size=128,
                                          shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat',
@@ -65,11 +65,11 @@ classes = ('plane', 'car', 'bird', 'cat',
 
 in_channels = 3
 filter_size1 = 5
-filter_size2 = 4
-inter_channels = 7
-out_channels = 32
+filter_size2 = 5
+inter_channels = 32
+out_channels = 64
 pool_size = 2
-layer_size1 = 80
+layer_size1 = 3072
 layer_size2 = 84
 
 num_epochs = 2
@@ -95,16 +95,17 @@ class Net(nn.Module):
         self.conv1 = nn.Conv2d(in_channels, inter_channels, filter_size1, padding=1)
         self.pool = nn.MaxPool2d(pool_size, pool_size)
         self.conv2 = nn.Conv2d(inter_channels, out_channels, filter_size2, padding=1)
-        self.fc1 = nn.Linear(out_channels * 7 * 7, layer_size1)
-        self.fc2 = nn.Linear(layer_size1, layer_size2)
-        self.fc3 = nn.Linear(layer_size2, 10)
+        self.fc1 = nn.Linear(2304, layer_size1)
+        #self.fc2 = nn.Linear(layer_size1, layer_size2)
+        self.drop = nn.Dropout(p=0.2)
+        self.fc3 = nn.Linear(layer_size1, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = x.view(-1, int(x.numel()/x.shape[0]))
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = self.drop(F.relu(self.fc1(x)))
+        #x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
@@ -112,8 +113,8 @@ class Net(nn.Module):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = x.view(-1, int(x.numel()/x.shape[0]))
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = self.drop(F.relu(self.fc1(x)))
+        #x = F.relu(self.fc2(x))
 
         return x
 
