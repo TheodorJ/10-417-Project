@@ -100,7 +100,6 @@ def insert_conv_layer(old_descriptor):
     maxp_layer = unchanged[-1]
     unchanged = unchanged[:len(unchanged) - 1]
 
-    print(summarize_descriptor(unchanged))
     old_outc = unchanged[-2][1].shape[0]
     old_tensor = torch.zeros((old_outc, old_outc, 5, 5))
     for i in range(old_outc):
@@ -563,6 +562,13 @@ def beam_search(descriptor, beam_width, trainloader, testloader):
         all_mutations = []
         all_scores = []
         for bm_score, bm in best_mutations:
+
+            # Clobber the weights of the descriptor
+            bm = descriptor_to_network(bm, ignore_values=True).to_descriptor()
+
+            # Retrain the descriptor
+            bm = train_descriptor(bm, trainloader, num_epochs=3, lr=0.001, momentum=MOMENTUM)
+
             print("Generating modifications...")
             mutations = generate_all_modifications(bm)
 
