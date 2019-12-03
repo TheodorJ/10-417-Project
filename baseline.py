@@ -178,47 +178,6 @@ def train_parameters(hyp):
                         (epoch + 1, num_epochs, i + 1, len(trainloader), running_loss / 2000))
                 running_loss = 0.0
 
-        # Calculate test loss/accuracy
-        dataiter = iter(testloader)
-        images, labels = dataiter.next()
-
-        total = 0
-        correct = 0
-        total_test_loss = 0
-        with torch.no_grad():
-            for data in testloader:
-                images, labels = data
-                outputs = net(images)
-                loss = criterion(outputs, labels)
-                total_test_loss += loss
-                outputs = net(images)
-                loss, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-        total_test_loss = total_test_loss / n_test
-
-        endtime = int(round(time.time() * 1000))
-
-        with open(params_to_filename(hyp), "a") as fd:
-            fd.write("%d," % epoch)
-            for hyper in hyp:
-                fd.write(str(hyper) + ",")
-
-            fd.write("%f," % (running_loss / n_train))
-            fd.write("%f," % (correct_train / n_train))
-            fd.write("%f," % total_test_loss)
-            fd.write("%f," % (correct / n_test))
-            fd.write("%d,\n" % (endtime - starttime))
-
-
-
-
-    print('Finished Training')
-
-    dataiter = iter(testloader)
-    images, labels = dataiter.next()
-
     correct = 0
     total = 0
     with torch.no_grad():
@@ -231,6 +190,7 @@ def train_parameters(hyp):
 
     net_loss = total_loss / n_train
     net_acc  = correct / n_test
+
 
     print('Finished Training')
 
