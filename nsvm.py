@@ -126,7 +126,7 @@ net = Net()
 
 
 import torch.optim as optim
-
+"""
 criterion = nn.CrossEntropyLoss()
 #criterion = HingeLoss()
 #criterion = SpacialSeparation()
@@ -345,7 +345,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
     print('Accuracy of the network on the 10000 test images: %f %%' % (
         100 * correct / total))
-
+"""
 print("Neural SVM with pretrained layer, except previous layers can be retrained")
 num_epochs = 10
 net = Net()
