@@ -13,6 +13,8 @@ import time
 
 from dimensions import *
 
+birthday = int(round(time.time() * 1000))
+
 
 
 transform = transforms.Compose(
@@ -47,7 +49,7 @@ hidden_layer_tries = [[80,84], [120,84]]
 lr_tries = [0.001]
 momentum_tries = [0.9]
 
-NUM_CORES = 4
+NUM_CORES = 1
 
 RESULT_FOLDER = "results/"
 def params_to_filename(hyp):
@@ -230,7 +232,16 @@ def train_parameters(hyp):
     net_loss = total_loss / n_train
     net_acc  = correct / n_test
 
-    print('Net Loss: %.3f   | Net Acc: %.3f' % (net_loss, net_acc))
+    print('Finished Training')
+
+    '''
+    PATH = './cifar_net.pth'
+    torch.save(net.state_dict(), PATH)
+
+    dataiter = iter(testloader)
+    images, labels = dataiter.next()
+    '''
+
 
 
 
@@ -244,3 +255,6 @@ for worker in workers:
 
 for worker in workers:
     worker.join()
+
+now = int(round(time.time() * 1000))
+print((now - birthday))
