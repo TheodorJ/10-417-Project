@@ -24,7 +24,7 @@ class SpacialSeparation(torch.nn.Module):
         for i in range(b_n):
             for j in range(i + 1, b_n):
                 distances[i][j] = torch.sqrt(torch.norm(outputs[i] - outputs[j]))
-                distances[i][j] *= -1.0 if labels[i] != labels[j] else 1.0
+                distances[i][j] *= 1.0 if labels[i] != labels[j] else -1.0
                 distances[i][j] = distances[i][j] if i < j else 0.0
 
         #print(distances)
