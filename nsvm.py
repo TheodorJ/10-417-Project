@@ -381,7 +381,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
             running_loss = 0.0
 
 
-    correct = 0
+    """correct = 0
     total = 0
     total_space_sep = 0.0
     space_sep = SpacialSeparation()
@@ -398,7 +398,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
     print("Average spacial separation: %f" % (total_space_sep / total))
 
     print('Accuracy of the network on the train images: %f %%' % (
-        100 * correct / total))
+        100 * correct / total))"""
 
     correct = 0
     total = 0
@@ -458,7 +458,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
             running_loss = 0.0
 
 
-    correct = 0
+    """correct = 0
     total = 0
     total_space_sep = 0.0
     space_sep = SpacialSeparation()
@@ -475,7 +475,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
     print("Average spacial separation: %f" % (total_space_sep / total))
 
     print('Accuracy of the network on the train images: %f %%' % (
-        100 * correct / total))
+        100 * correct / total))"""
 
     correct = 0
     total = 0
