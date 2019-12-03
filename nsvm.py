@@ -71,7 +71,7 @@ pool_size = 2
 layer_size1 = 3072
 layer_size2 = 84
 
-num_epochs = 10
+num_epochs = 1
 lr = 0.001
 momentum = 0.9
 
@@ -381,43 +381,44 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
             running_loss = 0.0
 
 
-correct = 0
-total = 0
-total_space_sep = 0.0
-space_sep = SpacialSeparation()
-with torch.no_grad():
-    for data in trainloader:
-        images, labels = data
-        outputs = net(images)
-        total_space_sep += 128 * space_sep(net.kernel(images), labels)
-        b_n = 128
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        correct = 0
+        total = 0
+        total_space_sep = 0.0
+        space_sep = SpacialSeparation()
+        with torch.no_grad():
+            for data in trainloader:
+                images, labels = data
+                outputs = net(images)
+                b_n = images.shape[0]
+                total_space_sep += b_n * space_sep(net.kernel(images), labels)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
 
-print("Average spacial separation: %f" % (total_space_sep / total))
+        print("Average spacial separation: %f" % (total_space_sep / total))
 
-print('Accuracy of the network on the train images: %f %%' % (
-    100 * correct / total))
+        print('Accuracy of the network on the train images: %f %%' % (
+            100 * correct / total))
 
-correct = 0
-total = 0
-total_space_sep = 0.0
-space_sep = SpacialSeparation()
-with torch.no_grad():
-    for data in testloader:
-        images, labels = data
-        outputs = net(images)
-        total_space_sep += 128 * space_sep(net.kernel(images), labels)
-        b_n = 128
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        correct = 0
+        total = 0
+        total_space_sep = 0.0
+        space_sep = SpacialSeparation()
+        with torch.no_grad():
+            for data in testloader:
+                images, labels = data
+                outputs = net(images)
+                b_n = images.shape[0]
+                total_space_sep += b_n * space_sep(net.kernel(images), labels)
+                b_n = b_n
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
 
-print("Average spacial separation: %f" % (total_space_sep / total))
+        print("Average spacial separation: %f" % (total_space_sep / total))
 
-print('Accuracy of the network on the 10000 test images: %f %%' % (
-    100 * correct / total))
+        print('Accuracy of the network on the 10000 test images: %f %%' % (
+            100 * correct / total))
 
 
 #criterion = nn.CrossEntropyLoss()
@@ -440,9 +441,11 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         # forward + backward + optimize
         kernel_space = net.kernel(inputs)
         outputs = net.output(kernel_space)
-        new_labels = torch.zeros((128, 10))
-        for i in range(128):
+        b_n = outputs.shape[0]
+        new_labels = torch.zeros((b_n, 10))
+        for i in range(b_n):
             new_labels[i][labels[i]] = 1
+
         loss = criterion(outputs, new_labels)
         loss.backward()
         optimizer.step()
@@ -455,43 +458,44 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
             running_loss = 0.0
 
 
-correct = 0
-total = 0
-total_space_sep = 0.0
-space_sep = SpacialSeparation()
-with torch.no_grad():
-    for data in trainloader:
-        images, labels = data
-        outputs = net(images)
-        total_space_sep += 128 * space_sep(net.kernel(images), labels)
-        b_n = 128
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+    correct = 0
+    total = 0
+    total_space_sep = 0.0
+    space_sep = SpacialSeparation()
+    with torch.no_grad():
+        for data in trainloader:
+            images, labels = data
+            outputs = net(images)
+            b_n = images.shape[0]
+            total_space_sep += b_n * space_sep(net.kernel(images), labels)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-print("Average spacial separation: %f" % (total_space_sep / total))
+    print("Average spacial separation: %f" % (total_space_sep / total))
 
-print('Accuracy of the network on the train images: %f %%' % (
-    100 * correct / total))
+    print('Accuracy of the network on the train images: %f %%' % (
+        100 * correct / total))
 
-correct = 0
-total = 0
-total_space_sep = 0.0
-space_sep = SpacialSeparation()
-with torch.no_grad():
-    for data in testloader:
-        images, labels = data
-        outputs = net(images)
-        total_space_sep += 128 * space_sep(net.kernel(images), labels)
-        b_n = 128
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+    correct = 0
+    total = 0
+    total_space_sep = 0.0
+    space_sep = SpacialSeparation()
+    with torch.no_grad():
+        for data in testloader:
+            images, labels = data
+            outputs = net(images)
+            b_n = images.shape[0]
+            total_space_sep += b_n * space_sep(net.kernel(images), labels)
+            b_n = b_n
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
 
-print("Average spacial separation: %f" % (total_space_sep / total))
+    print("Average spacial separation: %f" % (total_space_sep / total))
 
-print('Accuracy of the network on the 10000 test images: %f %%' % (
-    100 * correct / total))
+    print('Accuracy of the network on the 10000 test images: %f %%' % (
+        100 * correct / total))
 
 
 print('Finished Training')
