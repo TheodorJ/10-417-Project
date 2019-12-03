@@ -152,7 +152,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
         # print statistics
         running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
+        if i % 20 == 19:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                     (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
@@ -165,8 +165,8 @@ with torch.no_grad():
     for data in trainloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
@@ -184,8 +184,8 @@ with torch.no_grad():
     for data in testloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
@@ -217,18 +217,16 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         with torch.no_grad():
             kernel_space = net.kernel(inputs)
         outputs = net.output(kernel_space)
-        new_labels = torch.zeros((4, 10))
-        new_labels[0][labels[0]] = 1
-        new_labels[1][labels[1]] = 1
-        new_labels[2][labels[2]] = 1
-        new_labels[3][labels[3]] = 1
+        new_labels = torch.zeros((128, 10))
+        for i in range(128):
+            new_labels[i][labels[i]] = 1
         loss = criterion(outputs, new_labels)
         loss.backward()
         optimizer.step()
 
         # print statistics
         running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
+        if i % 20 == 19:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                     (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
@@ -241,8 +239,8 @@ with torch.no_grad():
     for data in trainloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
@@ -260,8 +258,8 @@ with torch.no_grad():
     for data in testloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
@@ -296,18 +294,16 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
         # forward + backward + optimize
         outputs = net(inputs)
-        new_labels = torch.zeros((4, 10))
-        new_labels[0][labels[0]] = 1
-        new_labels[1][labels[1]] = 1
-        new_labels[2][labels[2]] = 1
-        new_labels[3][labels[3]] = 1
+        new_labels = torch.zeros((128, 10))
+        for i in range(128):
+            new_labels[i][labels[i]] = 1
         loss = criterion(outputs, new_labels)
         loss.backward()
         optimizer.step()
 
         # print statistics
         running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
+        if i % 20 == 19:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                     (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
@@ -321,8 +317,8 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         for data in trainloader:
             images, labels = data
             outputs = net(images)
-            total_space_sep += 4 * space_sep(net.kernel(images), labels)
-            b_n = 4
+            total_space_sep += 128 * space_sep(net.kernel(images), labels)
+            b_n = 128
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
@@ -340,8 +336,8 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         for data in testloader:
             images, labels = data
             outputs = net(images)
-            total_space_sep += 4 * space_sep(net.kernel(images), labels)
-            b_n = 4
+            total_space_sep += 128 * space_sep(net.kernel(images), labels)
+            b_n = 128
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
@@ -380,7 +376,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
         # print statistics
         running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
+        if i % 20 == 19:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                     (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
@@ -394,8 +390,8 @@ with torch.no_grad():
     for data in trainloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
@@ -413,8 +409,8 @@ with torch.no_grad():
     for data in testloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
@@ -445,18 +441,16 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         # forward + backward + optimize
         kernel_space = net.kernel(inputs)
         outputs = net.output(kernel_space)
-        new_labels = torch.zeros((4, 10))
-        new_labels[0][labels[0]] = 1
-        new_labels[1][labels[1]] = 1
-        new_labels[2][labels[2]] = 1
-        new_labels[3][labels[3]] = 1
+        new_labels = torch.zeros((128, 10))
+        for i in range(128):
+            new_labels[i][labels[i]] = 1
         loss = criterion(outputs, new_labels)
         loss.backward()
         optimizer.step()
 
         # print statistics
         running_loss += loss.item()
-        if i % 2000 == 1999:    # print every 2000 mini-batches
+        if i % 20 == 19:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                     (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
@@ -470,8 +464,8 @@ with torch.no_grad():
     for data in trainloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
@@ -489,8 +483,8 @@ with torch.no_grad():
     for data in testloader:
         images, labels = data
         outputs = net(images)
-        total_space_sep += 4 * space_sep(net.kernel(images), labels)
-        b_n = 4
+        total_space_sep += 128 * space_sep(net.kernel(images), labels)
+        b_n = 128
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
