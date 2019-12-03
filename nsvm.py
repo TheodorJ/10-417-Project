@@ -71,7 +71,7 @@ pool_size = 2
 layer_size1 = 3072
 layer_size2 = 84
 
-num_epochs = 2
+num_epochs = 10
 lr = 0.001
 momentum = 0.9
 
@@ -130,7 +130,7 @@ import torch.optim as optim
 criterion = nn.CrossEntropyLoss()
 #criterion = HingeLoss()
 #criterion = SpacialSeparation()
-optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+optimizer = optim.Adam(net.parameters())
 
 
 for epoch in range(num_epochs):  # loop over the dataset multiple times
@@ -199,7 +199,7 @@ print('Accuracy of the network on the 10000 test images: %f %%' % (
 #criterion = HingeLoss()
 criterion = nn.MultiLabelSoftMarginLoss()
 #criterion = SpacialSeparation()
-optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+optimizer = optim.Adam(net.parameters())
 
 
 for epoch in range(num_epochs):  # loop over the dataset multiple times
@@ -272,13 +272,13 @@ print("Baseline: Implementing pure SVM")
 
 net = Net()
 
-num_epochs = 3
+num_epochs = 10
 
 #criterion = nn.CrossEntropyLoss()
 criterion = nn.MultiLabelSoftMarginLoss()
 #criterion = HingeLoss()
 #criterion = SpacialSeparation()
-optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+optimizer = optim.Adam(net.parameters())
 
 
 for epoch in range(num_epochs):  # loop over the dataset multiple times
@@ -347,14 +347,14 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         100 * correct / total))
 
 print("Neural SVM with pretrained layer, except previous layers can be retrained")
-num_epochs = 2
+num_epochs = 10
 net = Net()
 
 
 criterion = nn.CrossEntropyLoss()
 #criterion = HingeLoss()
 #criterion = SpacialSeparation()
-optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+optimizer = optim.Adam(net.parameters())
 
 
 for epoch in range(num_epochs):  # loop over the dataset multiple times
@@ -424,7 +424,7 @@ print('Accuracy of the network on the 10000 test images: %f %%' % (
 #criterion = HingeLoss()
 criterion = nn.MultiLabelSoftMarginLoss()
 #criterion = SpacialSeparation()
-optimizer = optim.SGD(net.parameters(), lr=lr, momentum=momentum)
+optimizer = optim.Adam(net.parameters())
 
 
 for epoch in range(num_epochs):  # loop over the dataset multiple times
