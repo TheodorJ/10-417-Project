@@ -153,7 +153,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         running_loss += loss.item()
         if i % 80 == 79:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
-                    (epoch + 1, i + 1, running_loss / 2000))
+                    (epoch + 1, i + 1, running_loss / 80))
             running_loss = 0.0
 
 correct = 0
@@ -227,7 +227,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         running_loss += loss.item()
         if i % 80 == 79:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
-                    (epoch + 1, i + 1, running_loss / 2000))
+                    (epoch + 1, i + 1, running_loss / 80))
             running_loss = 0.0
 
 correct = 0
@@ -304,7 +304,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         running_loss += loss.item()
         if i % 80 == 79:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
-                    (epoch + 1, i + 1, running_loss / 2000))
+                    (epoch + 1, i + 1, running_loss / 80))
             running_loss = 0.0
 
 
@@ -377,7 +377,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         running_loss += loss.item()
         if i % 80 == 79:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
-                    (epoch + 1, i + 1, running_loss / 2000))
+                    (epoch + 1, i + 1, running_loss / 80))
             running_loss = 0.0
 
 
@@ -451,7 +451,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         running_loss += loss.item()
         if i % 80 == 79:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
-                    (epoch + 1, i + 1, running_loss / 2000))
+                    (epoch + 1, i + 1, running_loss / 80))
             running_loss = 0.0
 
 
